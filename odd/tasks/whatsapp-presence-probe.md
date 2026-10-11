@@ -10,7 +10,7 @@ No frontend, database, message archive, conversation logging, or message-content
 
 ## Tasks
 
-- [ ] T1: Deliver SPEC.md, AGENTS.md, execution instructions, and a QR-authenticated presence probe with group/participant discovery, LID matching, opt-in self-alerts, deduplication, and offline checks.
+- [x] T1: Deliver SPEC.md, AGENTS.md, execution instructions, and a QR-authenticated presence probe with group/participant discovery, LID matching, opt-in self-alerts, deduplication, and offline checks.
 - [ ] T2: Pair account A and execute the documented experiment with account B; record event availability, target discrimination, duplicate handling, reconnection and real mobile notification results.
 
 ## Routing and checks
@@ -33,14 +33,18 @@ Implementation: source, tests, SPEC.md, AGENTS.md, and README.md are complete. B
 
 Observed checks: `npm.cmd test` passed 5 tests; `npm.cmd run typecheck` passed; `npm.cmd run build` passed; `node dist/cli.js --help` passed without opening a socket; `node dist/cli.js watch` rejected missing `GROUP_JID` before socket creation; direct Baileys ESM import/API smoke passed. Test-first evidence: identity, alert and in-flight tests failed against stubs, then passed after implementation. No WhatsApp session has been connected and no QR was scanned.
 
-T1 implementation is complete and awaits parent independent verification. T2 remains pending human pairing and the real two-account experiment; real group event delivery and mobile self-chat push are unknown. Node 24.13.0 / npm 11.6.2 were observed. No source files existed at start.
+T1 implementation and independent verification are complete for offline behavior. T2 remains pending human pairing and the real two-account experiment; real group event delivery and mobile self-chat push are unknown. Node 24.13.0 / npm 11.6.2 were observed. No source files existed at start.
 
 Work-unit commit: `f6fbdce` (`feat(whatsapp): add local group presence probe`). The feature branch contains approximately 799 authored changed lines excluding the generated lockfile; the selected delivery strategy remains single-pr.
 
-Independent-verifier correction pass: five new assertion-level regressions failed before fixes, covering continuous composing beyond cooldown, uninterrupted uncertain-send failure, PN/LID target-to-event index reuse, and invalid JID components. After correction, `npm.cmd test` passed 11 tests; `npm.cmd run typecheck`, `npm.cmd run build`, and `node dist/cli.js --help` passed. Offline CLI smoke rejected malformed `GROUP_JID` before socket creation. README now builds the CLI before first launch. No socket or QR interaction occurred. Independent recheck and T2 remain pending.
+Independent-verifier correction pass: five new assertion-level regressions failed before fixes, covering continuous composing beyond cooldown, uninterrupted uncertain-send failure, PN/LID target-to-event index reuse, and invalid JID components. After correction, `npm.cmd test` passed 11 tests; `npm.cmd run typecheck`, `npm.cmd run build`, and `node dist/cli.js --help` passed. Offline CLI smoke rejected malformed `GROUP_JID` before socket creation. README now builds the CLI before first launch. Independent recheck confirmed all four defects fixed and repeated the checks successfully; the parent also reran typecheck successfully. T2 remains pending.
 
 Correction work-unit commit: `5759529` (`fix(whatsapp): close presence and identity gaps`).
 
+Native review: effective RDD is on/default. Assessment over the committed range from `da74e7b` returned medium risk and review due (`slice_budget_reached`). Sandbox access initially made assessment unavailable; authorized local metadata access resolved that failure. Preflight returned a START requiring relayed consent. START was not invoked, no consent answer was invented, no transaction was frozen and no receipt exists. The current user request limits human participation to QR and real WhatsApp trials, so consent-based native review is deferred without toggling the mode. Independent offline verification is recorded separately.
+
+Local Git is initialized with baseline `da74e7b` and branch `feature/whatsapp-presence-probe`. No push, pull request or publication occurred. Authored implementation plus correction is approximately 953 additions/deletions excluding lockfile and later tracking updates.
+
 ## Next step
 
-After independent verification, ask the user to pair account A via QR and run the documented T2 experiment with account B.
+Pair account A via QR and run the documented T2 experiment with account B. Keep every real-account result pending until observed; consent-based native review is separately deferred.
