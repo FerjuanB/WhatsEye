@@ -35,6 +35,8 @@ Observed checks: `npm.cmd test` passed 5 tests; `npm.cmd run typecheck` passed; 
 
 T1 implementation is complete and awaits parent independent verification. T2 remains pending human pairing and the real two-account experiment; real group event delivery and mobile self-chat push are unknown. Node 24.13.0 / npm 11.6.2 were observed. No source files existed at start.
 
+Work-unit commit: `f6fbdce` (`feat(whatsapp): add local group presence probe`). The feature branch contains approximately 799 authored changed lines excluding the generated lockfile; the selected delivery strategy remains single-pr.
+
 ## Next step
 
 After independent verification, ask the user to pair account A via QR and run the documented T2 experiment with account B.
