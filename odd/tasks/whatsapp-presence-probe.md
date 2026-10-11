@@ -44,6 +44,8 @@ Correction work-unit commit: `5759529` (`fix(whatsapp): close presence and ident
 
 T3: the existing `groups` output now includes only each group's subject (with an unavailable fallback) and exact JID. CLI help, README selection steps, and SPEC scope describe this projection; participant names and other metadata are not added. Local typecheck, test suite, build, and offline help passed. No group query or WhatsApp connection was run. Parent structural readback remains pending.
 
+T3 work-unit commit: `a9122e5` (`feat(whatsapp): show group names during discovery`).
+
 Native review: effective RDD is on/default. Assessment over the committed range from `da74e7b` returned medium risk and review due (`slice_budget_reached`). Sandbox access initially made assessment unavailable; authorized local metadata access resolved that failure. Preflight returned a START requiring relayed consent. START was not invoked, no consent answer was invented, no transaction was frozen and no receipt exists. The current user request limits human participation to QR and real WhatsApp trials, so consent-based native review is deferred without toggling the mode. Independent offline verification is recorded separately.
 
 Local Git is initialized with baseline `da74e7b` and branch `feature/whatsapp-presence-probe`. No push, pull request or publication occurred. Authored implementation plus correction is approximately 953 additions/deletions excluding lockfile and later tracking updates.
