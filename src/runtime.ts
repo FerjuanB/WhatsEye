@@ -8,13 +8,18 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys'
 import pino from 'pino'
 import qrcode from 'qrcode-terminal'
+import {
+  assertRecipientIsNotSender,
+  createFixedTextSender,
+  PRESENCE_ALERT_TEXT,
+  RECIPIENT_TEST_TEXT,
+  selectPresenceDestination,
+} from './alerts.js'
 import { createGroupIdentityIndex, matchesGroup } from './identity.js'
 import { PresenceNotifier, type PresenceState } from './presence.js'
 import type { ProbeConfig, ProbeMode } from './config.js'
 
-const AUTH_DIR = 'auth_info'
 const MAX_RECONNECTS = 5
-const ALERT_TEXT = 'A participant may be composing in the selected group.'
 const SELF_TEST_TEXT = 'WhatsApp presence probe self-message test.'
 
 type CloseSignal = { statusCode?: number }
@@ -84,6 +89,18 @@ async function runOneShot(socket: WASocket, mode: ProbeMode, config: ProbeConfig
     const destination = jidNormalizedUser(selfId)
     await socket.sendMessage(destination, { text: SELF_TEST_TEXT })
     output({ type: 'self-message', destination, acceptedBySocket: true })
+    return
+  }
+  if (mode === 'alert-test') {
+    const recipient = config.alertToJid!
+    await assertRecipientIsNotSender(
+      recipient,
+      [socket.user ?? {}, socket.authState.creds.me ?? {}],
+      socket.signalRepository.lidMapping,
+    )
+    const sendFixedText = createFixedTextSender(recipient, async (jid, text) => socket.sendMessage(jid, { text }))
+    await sendFixedText(RECIPIENT_TEST_TEXT)
+    output({ type: 'recipient-alert-test', acceptedBySocket: true })
   }
 }
 
@@ -93,14 +110,25 @@ async function runWatch(socket: WASocket, config: ProbeConfig, isCurrent: () => 
   const verifiedMapping = config.targetJid ? await lookupTargetMapping(socket, config.targetJid) : undefined
   const identityIndex = createGroupIdentityIndex(metadata.participants, verifiedMapping ? [verifiedMapping] : [])
   const canonicalTarget = config.targetJid ? identityIndex.resolve(config.targetJid) : null
-  if (config.alertToSelf && !canonicalTarget) {
+  if ((config.alertToSelf || config.alertToJid) && !canonicalTarget) {
     throw new Error('TARGET_JID did not resolve to a participant in GROUP_JID; no alert was sent.')
   }
   const meId = socket.user?.id
   if (config.alertToSelf && !meId) throw new Error('The authenticated account identity is unavailable.')
+  const destination = selectPresenceDestination(config, meId)
+  if (config.alertToJid) {
+    await assertRecipientIsNotSender(
+      config.alertToJid,
+      [socket.user ?? {}, socket.authState.creds.me ?? {}],
+      socket.signalRepository.lidMapping,
+    )
+  }
 
-  const notifier = canonicalTarget && config.alertToSelf
+  const notifier = canonicalTarget && destination
     ? new PresenceNotifier(canonicalTarget, { staleMs: 120_000, cooldownMs: 300_000 })
+    : undefined
+  const sendFixedText = destination
+    ? createFixedTextSender(destination, async (jid, text) => socket.sendMessage(jid, { text }))
     : undefined
   let events = 0
   let filtered = 0
@@ -143,12 +171,12 @@ async function runWatch(socket: WASocket, config: ProbeConfig, isCurrent: () => 
         void notifier.handle(resolvedId, state, Date.now(), async () => {
           sendAttempts += 1
           try {
-            await socket.sendMessage(jidNormalizedUser(meId!), { text: ALERT_TEXT })
+            await sendFixedText!(PRESENCE_ALERT_TEXT)
             sendSuccesses += 1
           } catch {
             sendFailures += 1
-            console.error('Self-alert send failed; outcome may be unknown and will not be retried automatically.')
-            throw new Error('Self-alert send failed.')
+            console.error('Alert send failed; outcome may be unknown and will not be retried automatically.')
+            throw new Error('Alert send failed.')
           }
         }).catch(() => undefined)
       }
@@ -170,7 +198,7 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
   process.once('SIGTERM', stop)
 
   try {
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR)
+    const { state, saveCreds } = await useMultiFileAuthState(config.authDir)
     let reconnects = 0
     while (!stopped) {
       const socket = makeWASocket({
@@ -223,7 +251,7 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
           continue
         }
         if (stopped) break
-        if (mode === 'groups' || mode === 'participants' || mode === 'self-test') {
+        if (mode === 'groups' || mode === 'participants' || mode === 'self-test' || mode === 'alert-test') {
           await runOneShot(socket, mode, config)
           await socket.end(undefined)
           return

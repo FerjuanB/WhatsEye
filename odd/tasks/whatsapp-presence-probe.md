@@ -2,23 +2,26 @@
 
 ## Objective and authorization
 
-Investigate a local Baileys MVP that detects a selected group participant composing without sending a message, then sends a fixed alert to the authenticated account's own chat. The user authorizes local implementation and checks. QR pairing and two-account experiments require the user. No remote deployment or publication is authorized.
+Investigate a local Baileys MVP that detects a selected group participant composing without sending a message, then sends a fixed alert. The user reports that a self-chat message appeared but no mobile notification arrived while the phone was locked and WhatsApp was in the background. They authorize an explicit recipient number using a separately paired sender account. Preserve legacy self modes and existing session files. The user authorizes local implementation and checks. QR pairing and remaining real-account experiments require the user. No remote deployment or publication is authorized.
 
 ## Scope and constraints
 
-No frontend, database, message archive, conversation logging, or message-content inspection. Persist only authentication/Signal state; identity and deduplication caches remain in memory. Pin Baileys 7.0.0-rc14 after inspecting installed compatibility. LIDs must remain usable without a phone mapping. Missing events and self-chat notifications must remain explicitly unvalidated until observed.
+No frontend, database, message archive, conversation logging, or message-content inspection. Persist only authentication/Signal state; identity and deduplication caches remain in memory. Pin Baileys 7.0.0-rc14 after inspecting installed compatibility. LIDs must remain usable without a phone mapping. Group composing event delivery and separate-account mobile notifications remain unvalidated. The negative legacy self-chat notification result is user-reported evidence.
 
 ## Tasks
 
 - [x] T1: Deliver SPEC.md, AGENTS.md, execution instructions, and a QR-authenticated presence probe with group/participant discovery, LID matching, opt-in self-alerts, deduplication, and offline checks.
 - [ ] T2: Pair account A and execute the documented experiment with account B; record event availability, target discrimination, duplicate handling, reconnection and real mobile notification results.
 - [x] T3: Show each joined group's name alongside its JID in the existing groups command so the user can select the group by name and configure the exact JID. No metadata export or message collection is requested.
+- [ ] T4: Add an explicit recipient for target composing alerts, an independent recipient send test, and an ignored separate authentication directory. Preserve existing self modes, user configuration and credentials. Validate routing/configuration offline and document separate sender pairing and real mobile notification checks. Implementation is complete; independent verification is pending.
 
 ## Routing and checks
 
 T1 uses delegated direct: research and writing span multiple non-trivial files. A read-only explorer verified primary docs, npm tags, Node compatibility and APIs. One bounded writer implements; a separate verifier checks the final files. Deterministic identity/deduplication behavior uses observed RED then GREEN with Node's test runner; real socket behavior has no offline RED and remains pending.
 
-T2 requires human intervention and cannot be replaced by synthetic tests. No system-wide validation claim is permitted before T2.
+T2 requires human intervention and cannot be replaced by synthetic tests. The user-reported self-chat outcome is recorded, but no composing-event or separate-sender notification trial is validated. No broader system-validation claim is permitted before T2.
+
+T4 uses delegated direct: preparatory exploration and multiple non-trivial code/test/doc files require one bounded writer. Run meaningful configuration/routing tests RED before implementation, then GREEN with `npm.cmd test`, `npm.cmd run typecheck`, `npm.cmd run build`, and offline CLI help. Independent verification and a parent check follow. Additional forecast: approximately 300 authored lines; existing single-pr delivery strategy remains. Allowed behavior: explicit PN recipient, separate target identity, opt-in sending, safe ignored auth directories, and a fixed-text recipient test. User edits in README.md, deleted .env.example, untracked .env copy.example/.atl, live .env, and auth_info must be preserved. No socket opens or sends during automated checks.
 
 ## Delivery
 
@@ -46,10 +49,12 @@ T3: the existing `groups` output now includes only each group's subject (with an
 
 T3 work-unit commit: `a9122e5` (`feat(whatsapp): show group names during discovery`).
 
+T4 implementation adds opt-in `ALERT_TO_JID` watch routing, fixed-text `alert-test`, fail-closed sender PN/LID self-detection, and safe `AUTH_DIR` selection under ignored `auth_*/` directories. The explicit recipient may be the monitored target, while the authenticated sender must be different. Legacy self-alert and self-test modes remain available. `docs/recipient-alerts.md` uses phase-specific `.env` edits and no shell overrides, and leaves empirical results blank. Initial T4 RED had eight targeted failures; initial GREEN had 20 passing tests plus typecheck, build, and CLI help. Independent verification then found setup-guide phase/environment defects and the unsupported target/recipient inequality. Correction RED: `npm.cmd test` failed the new exact same-target-recipient config assertion with `ALERT_TO_JID must be different from TARGET_JID`; fake composing/send and verified PN/LID alias routing tests passed. After removing the target/recipient restrictions, `npm.cmd test` passed 23 tests, and typecheck, build, CLI help, and `git diff --check` passed. No composing-event trial is claimed. Automated work has not read `.env` or authentication files. T4 remains unchecked until parent independent recheck; T2 remains pending the human two-account experiment.
+
 Native review: effective RDD is on/default. Assessment over the committed range from `da74e7b` returned medium risk and review due (`slice_budget_reached`). Sandbox access initially made assessment unavailable; authorized local metadata access resolved that failure. Preflight returned a START requiring relayed consent. START was not invoked, no consent answer was invented, no transaction was frozen and no receipt exists. The current user request limits human participation to QR and real WhatsApp trials, so consent-based native review is deferred without toggling the mode. Independent offline verification is recorded separately.
 
 Local Git is initialized with baseline `da74e7b` and branch `feature/whatsapp-presence-probe`. No push, pull request or publication occurred. Authored implementation plus correction is approximately 953 additions/deletions excluding lockfile and later tracking updates.
 
 ## Next step
 
-Resume T2: with the account paired and previous process stopped, run the groups command, select by visible name and copy that row's exact group JID into GROUP_JID. Names may repeat or change. Keep every real-account result pending until observed; consent-based native review is separately deferred.
+Resume T2 with the corrected phase-by-phase guide: pair the separate sender using a blank alert recipient, stop the pairing process, discover the group and participant, then configure and test the recipient in a fresh process. The user-reported negative self-chat result is known; group composing delivery and separate-account mobile notification outcomes remain pending. Consent-based native review is separately deferred.
