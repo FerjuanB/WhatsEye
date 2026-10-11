@@ -42,7 +42,7 @@ Independent-verifier correction pass: five new assertion-level regressions faile
 
 Correction work-unit commit: `5759529` (`fix(whatsapp): close presence and identity gaps`).
 
-T3: the existing `groups` output now includes only each group's subject (with an unavailable fallback) and exact JID. CLI help, README selection steps, and SPEC scope describe this projection; participant names and other metadata are not added. Local typecheck, test suite, build, and offline help passed. No group query or WhatsApp connection was run. Parent structural readback remains pending.
+T3: the existing `groups` output now includes only each group's subject (with an unavailable fallback) and exact JID. CLI help, README selection steps, and SPEC scope describe this projection; participant names and other metadata are not added. Local typecheck, all 11 tests, build, and offline help passed. Independent static verification and parent structural readback confirmed the name and ID come from the same group record and remain JSON-encoded; the parent also reran typecheck successfully. No group query or WhatsApp connection was run. The updated native assessment remains medium/due and consent review remains deferred.
 
 T3 work-unit commit: `a9122e5` (`feat(whatsapp): show group names during discovery`).
 
@@ -52,4 +52,4 @@ Local Git is initialized with baseline `da74e7b` and branch `feature/whatsapp-pr
 
 ## Next step
 
-Parent performs structural readback of T3, then resume T2. The user selects by visible group name but stores the exact JID because names may repeat or change. Keep every real-account result pending until observed; consent-based native review is separately deferred.
+Resume T2: with the account paired and previous process stopped, run the groups command, select by visible name and copy that row's exact group JID into GROUP_JID. Names may repeat or change. Keep every real-account result pending until observed; consent-based native review is separately deferred.
