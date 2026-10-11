@@ -1,0 +1,26 @@
+{
+  "name": "whatsapp-presence-probe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "build": "tsc",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "pino": "9.14.0",
+    "qrcode-terminal": "0.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "@types/qrcode-terminal": "0.12.2",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  }
+}
