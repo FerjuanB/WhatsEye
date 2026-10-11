@@ -2,6 +2,16 @@ import { jidNormalizedUser } from '@whiskeysockets/baileys'
 
 export type GroupMember = { id?: string; lid?: string; phoneNumber?: string }
 
+export function createGroupIdentityIndex(
+  members: GroupMember[],
+  verifiedMappings: Array<[string, string]> = [],
+) {
+  const participantMappings = members.flatMap((member) => (
+    member.lid && member.phoneNumber ? [[member.phoneNumber, member.lid] as [string, string]] : []
+  ))
+  return createIdentityIndex(members, [...participantMappings, ...verifiedMappings])
+}
+
 export function matchesGroup(eventGroupId: string, configuredGroupId: string) {
   return jidNormalizedUser(eventGroupId) === jidNormalizedUser(configuredGroupId)
 }

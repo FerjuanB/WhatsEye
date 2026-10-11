@@ -8,6 +8,7 @@ Use Node.js 20 or later. The implementation was built with Node.js 24.13.0 and n
 
 ```powershell
 npm.cmd install
+npm.cmd run build
 Copy-Item .env.example .env
 npm.cmd start -- pair
 ```
@@ -84,7 +85,7 @@ PN (`@s.whatsapp.net`) and LID (`@lid`) are different identifiers. The probe nor
 
 The probe subscribes to the selected group and makes a best-effort target subscription. WhatsApp may not emit group participant presence in every privacy, account, or group state. No event is inconclusive. The probe uses `markOnlineOnConnect: false`, disables full-history sync, and requests `unavailable` after connection to help mobile notification behavior, but this does not guarantee an event or push notification.
 
-Repeated composing updates are deduplicated in memory. Paused or other presence states clear the active episode; a two-minute stale timeout covers a missed paused event. A five-minute cooldown, in-flight guard, and no blind retry after uncertain send errors limit duplicate alerts. Restarting the process resets these caches, so exactly-once alerts are not promised. Reconnects are bounded to five attempts with exponential delays up to 30 seconds.
+Repeated composing updates are deduplicated in memory, and each composing observation refreshes the episode's activity time. Paused or other presence states clear the active episode; a two-minute observation gap covers a missed paused event. A five-minute cooldown, in-flight guard, and no blind retry after uncertain send errors limit duplicate alerts. Restarting the process resets these caches, so exactly-once alerts are not promised. Reconnects are bounded to five attempts with exponential delays up to 30 seconds.
 
 ## Local checks
 

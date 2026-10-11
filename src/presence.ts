@@ -30,13 +30,16 @@ export class PresenceNotifier {
     participantId = jidNormalizedUser(participantId)
     if (participantId !== this.targetId) return false
 
-    const activeSince = this.active.get(participantId)
     if (state !== 'composing') {
       this.active.delete(participantId)
       return false
     }
 
-    if (activeSince !== undefined && now - activeSince <= this.staleMs) return false
+    const activeSince = this.active.get(participantId)
+    if (activeSince !== undefined && now - activeSince <= this.staleMs) {
+      this.active.set(participantId, now)
+      return false
+    }
     this.active.set(participantId, now)
     if (this.inFlight || now - this.lastAttemptAt < this.cooldownMs) return false
 

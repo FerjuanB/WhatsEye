@@ -29,7 +29,7 @@ Baileys `presence.update` has an `id` for the chat and a `presences` map keyed b
 
 PN (`@s.whatsapp.net`) and LID (`@lid`) are distinct identity namespaces. Device suffixes are normalized away with Baileys' `jidNormalizedUser`. A target is matched only against identities supplied by the selected group's participant records or a verified Signal LID mapping. Equal digits across a PN and LID are never treated as proof. Ambiguous or unresolved targets are not used for alerting. An alert-enabled watch exits before listening when its target cannot be verified as a group member.
 
-Repeated `composing` updates for the same normalized member are treated as one episode. Paused or other presence states release the episode; a two-minute stale timeout releases it if the paused update is missed. A five-minute cooldown, an in-flight guard, and bounded in-memory episode state reduce duplicates. A send error has an uncertain delivery outcome and is not retried during that episode. State is not persisted, so a process restart can alert again. These rules do not promise exactly-once delivery.
+Repeated `composing` updates for the same normalized member are treated as one episode and refresh its last-observed time. Paused or other presence states release the episode; a two-minute gap with no composing observation releases it if the paused update is missed. The group identity index combines verified participant PN/LID fields with any verified Signal mapping used to resolve the configured target, so the same aliases resolve later presence events. A five-minute cooldown, an in-flight guard, and bounded in-memory episode state reduce duplicates. A send error has an uncertain delivery outcome and is not retried during that uninterrupted episode. State is not persisted, so a process restart can alert again. These rules do not promise exactly-once delivery.
 
 On open, the socket uses `markOnlineOnConnect: false`, disables full history sync, rejects history sync messages, and best-effort sends `unavailable` to help mobile notifications. It requests presence for the group and, when configured, best-effort requests the target. These settings do not guarantee that WhatsApp emits group presence for every participant or sends a push notification. Group subscriptions and self-chat push behavior must be measured with the real experiment.
 
@@ -43,7 +43,7 @@ On open, the socket uses `markOnlineOnConnect: false`, disables full history syn
 
 ## Acceptance criteria
 
-- [x] Offline tests cover normalization, verified PN/LID aliases, unknown identities, group isolation, composing deduplication, cooldown, stale expiry, in-flight sends, and uncertain send failures.
+- [x] Offline tests cover normalization, verified PN/LID aliases, unknown identities, group isolation, composing deduplication, cooldown, continuous activity, stale expiry, in-flight sends, uncertain send failures, and invalid JIDs.
 - [x] Presence output is limited to timestamps, selected group/participant identifiers, state, and an optional target-match flag.
 - [x] Configuration rejects malformed or incomplete alert settings before socket creation.
 - [x] No messages are stored or listened to by project code; self-sends are opt-in and fixed-text only.

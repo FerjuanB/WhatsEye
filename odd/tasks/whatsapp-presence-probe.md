@@ -37,6 +37,8 @@ T1 implementation is complete and awaits parent independent verification. T2 rem
 
 Work-unit commit: `f6fbdce` (`feat(whatsapp): add local group presence probe`). The feature branch contains approximately 799 authored changed lines excluding the generated lockfile; the selected delivery strategy remains single-pr.
 
+Independent-verifier correction pass: five new assertion-level regressions failed before fixes, covering continuous composing beyond cooldown, uninterrupted uncertain-send failure, PN/LID target-to-event index reuse, and invalid JID components. After correction, `npm.cmd test` passed 11 tests; `npm.cmd run typecheck`, `npm.cmd run build`, and `node dist/cli.js --help` passed. Offline CLI smoke rejected malformed `GROUP_JID` before socket creation. README now builds the CLI before first launch. No socket or QR interaction occurred. Independent recheck and T2 remain pending.
+
 ## Next step
 
 After independent verification, ask the user to pair account A via QR and run the documented T2 experiment with account B.

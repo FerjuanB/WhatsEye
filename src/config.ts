@@ -37,11 +37,13 @@ function parseBoolean(name: string, value: string | undefined): boolean {
 
 function normalizeJid(value: string | undefined, key: string, kind: 'group' | 'user') {
   if (!value) return undefined
-  const normalized = jidNormalizedUser(value.trim())
+  const raw = value.trim()
   const valid = kind === 'group'
-    ? normalized.endsWith('@g.us')
-    : normalized.endsWith('@s.whatsapp.net') || normalized.endsWith('@lid')
-  if (!valid || normalized.includes(' ')) throw new Error(`${key} must be a valid ${kind} JID.`)
+    ? /^\d+(?:-\d+)?@g\.us$/.test(raw)
+    : /^(?:\d+(?::\d+)?@s\.whatsapp\.net|\d+(?::\d+)?@lid)$/.test(raw)
+  if (!valid) throw new Error(`${key} must be a valid ${kind} JID.`)
+  const normalized = jidNormalizedUser(raw)
+  if (!normalized) throw new Error(`${key} must be a valid ${kind} JID.`)
   return normalized
 }
 

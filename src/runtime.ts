@@ -8,7 +8,7 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys'
 import pino from 'pino'
 import qrcode from 'qrcode-terminal'
-import { createIdentityIndex, matchesGroup } from './identity.js'
+import { createGroupIdentityIndex, matchesGroup } from './identity.js'
 import { PresenceNotifier, type PresenceState } from './presence.js'
 import type { ProbeConfig, ProbeMode } from './config.js'
 
@@ -39,31 +39,23 @@ function participantIds(participants: GroupParticipant[]) {
   }))
 }
 
-function mappingsFromParticipants(participants: GroupParticipant[]): Array<[string, string]> {
-  return participants.flatMap((participant) => {
-    if (!participant.lid || !participant.phoneNumber) return []
-    return [[participant.phoneNumber, participant.lid] as [string, string]]
-  })
-}
-
 async function getGroupMetadata(socket: WASocket, groupJid: string): Promise<GroupMetadata> {
   return socket.groupMetadata(groupJid)
 }
 
-async function resolveTarget(socket: WASocket, metadata: GroupMetadata, targetJid: string) {
-  const mappings = mappingsFromParticipants(metadata.participants)
+async function lookupTargetMapping(socket: WASocket, targetJid: string): Promise<[string, string] | undefined> {
   try {
     if (targetJid.endsWith('@s.whatsapp.net')) {
       const lid = await socket.signalRepository.lidMapping.getLIDForPN(targetJid)
-      if (lid) mappings.push([targetJid, lid])
+      if (lid) return [targetJid, lid]
     } else if (targetJid.endsWith('@lid')) {
       const pn = await socket.signalRepository.lidMapping.getPNForLID(targetJid)
-      if (pn) mappings.push([pn, targetJid])
+      if (pn) return [pn, targetJid]
     }
   } catch {
     // A failed optional mapping lookup leaves the target unresolved.
   }
-  return createIdentityIndex(metadata.participants, mappings).resolve(targetJid)
+  return undefined
 }
 
 async function runOneShot(socket: WASocket, mode: ProbeMode, config: ProbeConfig) {
@@ -91,8 +83,9 @@ async function runOneShot(socket: WASocket, mode: ProbeMode, config: ProbeConfig
 async function runWatch(socket: WASocket, config: ProbeConfig, isCurrent: () => boolean) {
   const groupJid = config.groupJid!
   const metadata = await getGroupMetadata(socket, groupJid)
-  const identityIndex = createIdentityIndex(metadata.participants, mappingsFromParticipants(metadata.participants))
-  const canonicalTarget = config.targetJid ? await resolveTarget(socket, metadata, config.targetJid) : null
+  const verifiedMapping = config.targetJid ? await lookupTargetMapping(socket, config.targetJid) : undefined
+  const identityIndex = createGroupIdentityIndex(metadata.participants, verifiedMapping ? [verifiedMapping] : [])
+  const canonicalTarget = config.targetJid ? identityIndex.resolve(config.targetJid) : null
   if (config.alertToSelf && !canonicalTarget) {
     throw new Error('TARGET_JID did not resolve to a participant in GROUP_JID; no alert was sent.')
   }
