@@ -6,7 +6,7 @@ const HELP = `WhatsApp group presence probe (unofficial, local demo)
 Usage: npm start -- <pair|groups|participants|watch|self-test>
 
   pair         Pair this local session by scanning the terminal QR code
-  groups       List joined group JIDs
+  groups       List joined group names and JIDs; select using the exact JID
   participants List participant JIDs for GROUP_JID
   watch        Inspect presence events for GROUP_JID
   self-test    Send one fixed message to the authenticated account's own chat

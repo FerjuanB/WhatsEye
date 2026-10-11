@@ -61,7 +61,14 @@ async function lookupTargetMapping(socket: WASocket, targetJid: string): Promise
 async function runOneShot(socket: WASocket, mode: ProbeMode, config: ProbeConfig) {
   if (mode === 'groups') {
     const groups = await socket.groupFetchAllParticipating()
-    for (const groupJid of Object.keys(groups).sort()) output({ type: 'group', group: jidNormalizedUser(groupJid) })
+    const entries = Object.entries(groups).sort(([left], [right]) => left.localeCompare(right))
+    for (const [groupJid, metadata] of entries) {
+      output({
+        type: 'group',
+        name: metadata.subject?.trim() || '(name unavailable)',
+        group: jidNormalizedUser(groupJid),
+      })
+    }
     return
   }
   if (mode === 'participants') {

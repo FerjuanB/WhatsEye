@@ -16,7 +16,7 @@ The implementation pins `@whiskeysockets/baileys` to exactly `7.0.0-rc14`. Node.
 ## Scope
 
 - Pair a local Baileys session by scanning a terminal QR code.
-- List joined group JIDs and the selected group's participant JIDs, including available PN and LID forms without names.
+- List joined group names (using each group's subject, or a clear unavailable fallback) alongside exact JIDs. Participant IDs remain available as PN and LID forms without names.
 - Subscribe to one selected group's presence updates and print a small projection: time, group JID, participant JID, and presence state.
 - Optionally filter output to a selected group member. Optional fixed self-alerts require `ALERT_TO_SELF=true` and a target that resolves to a member of that group.
 - Provide a distinct, opt-in self-message test. Both self-directed paths address the authenticated account from the active socket; there is no arbitrary destination setting.

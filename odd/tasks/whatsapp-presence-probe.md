@@ -12,6 +12,7 @@ No frontend, database, message archive, conversation logging, or message-content
 
 - [x] T1: Deliver SPEC.md, AGENTS.md, execution instructions, and a QR-authenticated presence probe with group/participant discovery, LID matching, opt-in self-alerts, deduplication, and offline checks.
 - [ ] T2: Pair account A and execute the documented experiment with account B; record event availability, target discrimination, duplicate handling, reconnection and real mobile notification results.
+- [x] T3: Show each joined group's name alongside its JID in the existing groups command so the user can select the group by name and configure the exact JID. No metadata export or message collection is requested.
 
 ## Routing and checks
 
@@ -41,10 +42,12 @@ Independent-verifier correction pass: five new assertion-level regressions faile
 
 Correction work-unit commit: `5759529` (`fix(whatsapp): close presence and identity gaps`).
 
+T3: the existing `groups` output now includes only each group's subject (with an unavailable fallback) and exact JID. CLI help, README selection steps, and SPEC scope describe this projection; participant names and other metadata are not added. Local typecheck, test suite, build, and offline help passed. No group query or WhatsApp connection was run. Parent structural readback remains pending.
+
 Native review: effective RDD is on/default. Assessment over the committed range from `da74e7b` returned medium risk and review due (`slice_budget_reached`). Sandbox access initially made assessment unavailable; authorized local metadata access resolved that failure. Preflight returned a START requiring relayed consent. START was not invoked, no consent answer was invented, no transaction was frozen and no receipt exists. The current user request limits human participation to QR and real WhatsApp trials, so consent-based native review is deferred without toggling the mode. Independent offline verification is recorded separately.
 
 Local Git is initialized with baseline `da74e7b` and branch `feature/whatsapp-presence-probe`. No push, pull request or publication occurred. Authored implementation plus correction is approximately 953 additions/deletions excluding lockfile and later tracking updates.
 
 ## Next step
 
-Pair account A via QR and run the documented T2 experiment with account B. Keep every real-account result pending until observed; consent-based native review is separately deferred.
+Parent performs structural readback of T3, then resume T2. The user selects by visible group name but stores the exact JID because names may repeat or change. Keep every real-account result pending until observed; consent-based native review is separately deferred.

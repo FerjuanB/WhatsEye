@@ -15,13 +15,13 @@ npm.cmd start -- pair
 
 Scan the QR code in the terminal with the WhatsApp account you control (account A). The QR is not written to a file. Keep this terminal private while pairing. Press Ctrl+C after the session connects; the local session is saved under `auth_info/` and ignored by Git.
 
-Discover groups and their participants:
+Discover joined groups. Each JSON line shows the group's name and exact JID; names can repeat or change, so use the JID as the selection key:
 
 ```powershell
 npm.cmd start -- groups
 ```
 
-Put one returned group JID into `GROUP_JID` in `.env`, then run:
+Choose a group by its displayed name, copy that row's exact `group` value into `GROUP_JID` in `.env`, then list its participants:
 
 ```powershell
 npm.cmd start -- participants
