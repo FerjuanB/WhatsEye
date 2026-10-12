@@ -64,15 +64,14 @@ Leave this table blank until account A and account B have been tested. Do not tr
 npm.cmd start -- --help
 npm.cmd start -- groups
 npm.cmd start -- participants
-npm.cmd start -- watch
-npm.cmd start -- self-test
+tal cnpm.cmd start -- self-test
 ```
 
 | Variable | Use |
 | --- | --- |
 | `GROUP_JID` | Required for `participants` and `watch`; select a group you control |
 | `TARGET_JID` | Optional watch filter; required when alerts are enabled |
-| `ALERT_TO_SELF` | Defaults to `false`; when true, send one fixed alert per detected target composing episode to account A's own chat |
+| `ALERT_TO_SELF` | Defaults to `false`; when true, send one fixed alert per detected target composing episode to account A's own sichat |
 | `SELF_MESSAGE_TEST` | Defaults to `false`; must be `true` to run the separate fixed self-message test |
 
 `watch` with no target prints presence projections for all members reported by the group. Set `TARGET_JID` to inspect only the exact resolved member. Notifications are disabled by default and require a selected group member. Both notification flows send only to the authenticated account identified by the active socket.
