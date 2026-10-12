@@ -1,90 +1,113 @@
 # WhatsApp presence probe
 
-This local probe watches presence updates for one WhatsApp group using the unofficial Baileys library. It does not inspect message contents. Real event and mobile notification behavior remains unverified until you run the two-account experiment below.
+This local TypeScript probe watches presence updates in one WhatsApp group. With an explicit opt-in, it sends a fixed alert from the paired sender account to a configured phone number when the selected participant is composing. It never reads or stores message contents. Baileys is unofficial; pairing, group presence, and mobile notification behavior must be tested with controlled accounts.
 
-## Quick path on Windows
+## Quick start on Windows
 
-Use Node.js 20 or later. The implementation was built with Node.js 24.13.0 and npm 11.6.2.
+Use Node.js 24, the version tested for this probe (24.13.0 with npm 11.6.2). Run all commands from the repository root. Install dependencies and build before the first command:
 
 ```powershell
 npm.cmd install
 npm.cmd run build
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+```
+
+Edit `.env` before pairing. For a separate sender account, use a new authentication directory and keep discovery and alert flags disabled:
+
+```dotenv
+AUTH_DIR=auth_sender
+GROUP_JID=
+TARGET_JID=
+ALERT_TO_JID=
+ALERT_TO_SELF=false
+SELF_MESSAGE_TEST=false
+ALERT_MESSAGE_TEST=false
+```
+
+If `.env` already exists, edit it rather than copying over it. Keep a fresh terminal free of shell environment overrides for these variables: the CLI preserves variables already present in the process environment, including empty values, instead of replacing them from `.env`.
+
+Pair the sender and scan the QR code shown in the terminal:
+
+```powershell
 npm.cmd start -- pair
 ```
 
-Scan the QR code in the terminal with the WhatsApp account you control (account A). The QR is not written to a file. Keep this terminal private while pairing. Press Ctrl+C after the session connects; the local session is saved under `auth_info/` and ignored by Git.
+After the account is linked, press Ctrl+C before starting another command. Credentials are saved under the selected `AUTH_DIR`; do not delete or reuse another account's session directory.
 
-Discover joined groups. Each JSON line shows the group's name and exact JID; names can repeat or change, so use the JID as the selection key:
+## Discover the group and target
+
+Start each command in a fresh process. List joined groups:
 
 ```powershell
 npm.cmd start -- groups
 ```
 
-Choose a group by its displayed name, copy that row's exact `group` value into `GROUP_JID` in `.env`, then list its participants:
+Choose the group by its displayed name, then copy the exact JID from that row into `GROUP_JID` in `.env`. Names can repeat or change, so the JID is the selection key. The sender account must belong to the selected group.
+
+List that group's participant IDs:
 
 ```powershell
 npm.cmd start -- participants
 ```
 
-Choose the participant JID for account B and set it as `TARGET_JID` only if you want to filter output or test an alert. Participant output contains IDs only, not contact names. Keep `.env` and `auth_info/` private.
+Copy the selected participant's PN or LID into `TARGET_JID`. Leave `ALERT_TO_JID` blank while pairing and discovering. The alert recipient may be the same person as the monitored target; the authenticated sender must be a different account.
 
-## Controlled two-account experiment
+## Test the recipient, then watch
 
-Use a group containing account A (the paired account) and account B (the account whose composing presence you will trigger). Avoid unrelated people and groups. Do not send any message content for the initial presence test.
+Set `ALERT_TO_JID` to a controlled receiving phone's PN JID, for example `15550000002@s.whatsapp.net`. Keep `ALERT_TO_SELF=false` and `SELF_MESSAGE_TEST=false`. Lock the receiving phone and leave WhatsApp in the background. In `.env`, change `ALERT_MESSAGE_TEST=false` to `ALERT_MESSAGE_TEST=true`, then run:
 
-1. Start with `ALERT_TO_SELF=false` and `SELF_MESSAGE_TEST=false` in `.env`.
-2. Set `GROUP_JID` to the controlled group's ID. Leave `TARGET_JID` empty to observe all participants, or set it to B's PN or LID to filter.
-3. Start `npm.cmd start -- watch` on A. B opens the group, types without sending, pauses, and repeats. Record whether A receives events for B and whether unrelated participants appear. Repeat a composing episode several times to observe deduplication.
-4. Repeat with B's PN/LID form changed in `TARGET_JID` only when the group listing gives a verified mapping. If it is unresolved, record that outcome; do not guess based on similar digits.
-5. While watching, disconnect and reconnect A's network once. Record any event gap, retry, or duplicate. Restart the process and repeat one composing episode to observe that in-memory deduplication resets.
-6. Only after the presence-only run, optionally set `ALERT_TO_SELF=true` with B's verified group participant ID and repeat. Observe the fixed alert in A's own chat. Then lock/background A's phone and repeat controlled trials while A is unavailable, and while it is active, recording app notification settings and outcomes.
-7. Test self-chat push separately with `SELF_MESSAGE_TEST=true` and `npm.cmd start -- self-test`. This sends one fixed test message to A's own chat; it does not test group-presence delivery.
+```powershell
+npm.cmd start -- alert-test
+```
 
-Baileys reports `acceptedBySocket` after a self-message send call. That proves only that the local send call completed. Record actual notification behavior on the phone separately. If self-chat does not produce a push, the original mobile notification objective has failed for this path; an alternate notification channel would need a separate product decision.
+This sends one fixed test message to the configured recipient. It does not require `GROUP_JID` or `TARGET_JID`. A successful send call does not prove that WhatsApp delivered a notification. After the command exits, change `ALERT_MESSAGE_TEST=true` back to `ALERT_MESSAGE_TEST=false` in `.env`, then run:
 
-### Result record
+```powershell
+npm.cmd start -- watch
+```
 
-Leave this table blank until account A and account B have been tested. Do not treat no event as proof that B was not composing.
+Have the monitored target begin composing in the selected group without sending a message. Record whether the sender receives a presence event, whether the recipient gets the fixed alert, and whether the locked phone shows a notification. Repeat a composing episode and test reconnect behavior. No presence event is inconclusive; the library or WhatsApp may not expose that participant's presence. The separate-account notification result remains pending until observed. For detailed trial steps and a blank result table, see [docs/recipient-alerts.md](docs/recipient-alerts.md).
 
-| Experiment | Observation | Evidence / notes |
+## Zorin Linux
+
+Use the same configuration phases. Replace `npm.cmd` with `npm`; copy the template only when `.env` is absent:
+
+```bash
+npm install
+npm run build
+if [ ! -f .env ]; then cp .env.example .env; fi
+```
+
+Before pairing, edit `.env` as above: set `AUTH_DIR=auth_sender`, leave group, target, and recipient identifiers blank, and keep all flags false. Then run `npm start -- pair` and press Ctrl+C after the sender links. Discover the group and participant with `npm start -- groups` and `npm start -- participants`, updating `.env` between commands. Finally set the recipient and enable `ALERT_MESSAGE_TEST` only for `npm start -- alert-test`; turn it back to false before `npm start -- watch`. Do not set shell environment overrides for these variables unless you intend them to take precedence over `.env`.
+
+## Configuration
+
+The `.env.example` template lists every setting recognized by the current CLI. Blank identifiers and false flags allow pairing and group listing. Configure only the values needed for the command you are running.
+
+| Variable | Default | Accepted value and use |
 | --- | --- | --- |
-| Group presence event for B | Pending | |
-| Filter separates B from other members | Pending | |
-| Repeated composing updates and paused state | Pending | |
-| Missing paused event / stale timeout | Pending | |
-| Network reconnect behavior | Pending | |
-| Alert appears in A's own chat | Pending | |
-| Mobile push while A is active | Pending | |
-| Mobile push while A is backgrounded/locked | Pending | |
+| `AUTH_DIR` | `auth_info` | Single top-level ASCII name matching `auth_[A-Za-z0-9_-]+`; stores this sender's Baileys authentication and Signal state. Use `auth_sender` for a separate sender. |
+| `GROUP_JID` | blank | Numeric group JID ending in `@g.us`; required for `participants` and `watch`. |
+| `TARGET_JID` | blank | Participant PN (`@s.whatsapp.net`) or LID (`@lid`); optional watch filter, required for watch alerts, and must resolve to a member of `GROUP_JID`. |
+| `ALERT_TO_JID` | blank | Phone-number PN JID (`digits@s.whatsapp.net`); enables fixed-recipient watch alerts or `alert-test`. In watch mode, the recipient may be the target. |
+| `ALERT_TO_SELF` | `false` | Set `true` for the legacy fixed self-chat watch alert. Watch only; requires a group target and cannot be combined with `ALERT_TO_JID`. |
+| `SELF_MESSAGE_TEST` | `false` | Set `true` only for `self-test`, which sends one fixed message to the authenticated account's own chat. |
+| `ALERT_MESSAGE_TEST` | `false` | Set `true` only for `alert-test`, together with `ALERT_TO_JID`; sends one fixed test message. |
 
-## Commands and configuration
+`alert-test` does not require a group or monitored target. Watch alerts do: the configured target must be verified as a member of the selected group. The explicit recipient is checked against the sender's phone identity and verified LID mapping; delivery is refused when it matches the sender or when the sender phone identity is unavailable. Uncertain sends are not retried automatically. Self-alerts and explicit-recipient alerts are disabled unless their corresponding settings are enabled.
 
-```powershell
-npm.cmd start -- --help
-npm.cmd start -- groups
-npm.cmd start -- participants
-tal cnpm.cmd start -- self-test
+## Commands
+
+```text
+pair         Pair the local session by scanning a terminal QR code
+groups       List joined group names and exact JIDs
+participants List participant IDs for GROUP_JID
+watch        Inspect presence events for GROUP_JID
+self-test    Send one fixed message to the authenticated account's own chat
+alert-test   Send one fixed message to ALERT_TO_JID after explicit opt-in
 ```
 
-| Variable | Use |
-| --- | --- |
-| `GROUP_JID` | Required for `participants` and `watch`; select a group you control |
-| `TARGET_JID` | Optional watch filter; required when alerts are enabled |
-| `ALERT_TO_SELF` | Defaults to `false`; when true, send one fixed alert per detected target composing episode to account A's own sichat |
-| `SELF_MESSAGE_TEST` | Defaults to `false`; must be `true` to run the separate fixed self-message test |
-
-`watch` with no target prints presence projections for all members reported by the group. Set `TARGET_JID` to inspect only the exact resolved member. Notifications are disabled by default and require a selected group member. Both notification flows send only to the authenticated account identified by the active socket.
-
-## What the probe records
-
-Presence output includes the local timestamp, selected group ID, participant ID, presence state, and (when a target is configured) whether the participant matched. It does not print `lastSeen`, names, message bodies, or full Baileys event objects. The code does not register message listeners or persist conversation data. Baileys' own in-memory protocol handling is still part of the library.
-
-PN (`@s.whatsapp.net`) and LID (`@lid`) are different identifiers. The probe normalizes device suffixes and joins them only through participant fields or verified Signal mappings. It never assumes equal phone-like digits mean the same person. An unresolved target cannot receive an alert.
-
-The probe subscribes to the selected group and makes a best-effort target subscription. WhatsApp may not emit group participant presence in every privacy, account, or group state. No event is inconclusive. The probe uses `markOnlineOnConnect: false`, disables full-history sync, and requests `unavailable` after connection to help mobile notification behavior, but this does not guarantee an event or push notification.
-
-Repeated composing updates are deduplicated in memory, and each composing observation refreshes the episode's activity time. Paused or other presence states clear the active episode; a two-minute observation gap covers a missed paused event. A five-minute cooldown, in-flight guard, and no blind retry after uncertain send errors limit duplicate alerts. Restarting the process resets these caches, so exactly-once alerts are not promised. Reconnects are bounded to five attempts with exponential delays up to 30 seconds.
+Presence output contains only a timestamp, group ID, participant ID, presence state, and optional target-match result. The probe does not register message listeners or write conversation content. Baileys still handles its own in-memory protocol state. `auth_*` directories and `.env` contain sensitive configuration and session data; keep them private and do not share QR codes.
 
 ## Local checks
 
@@ -94,8 +117,4 @@ npm.cmd run typecheck
 npm.cmd run build
 ```
 
-These checks cover local identity and deduplication logic only. They cannot verify QR pairing, group event delivery, reconnects against WhatsApp, or mobile push behavior.
-
-## Account and session risk
-
-Baileys is an unofficial WhatsApp Web library and this project pins a release candidate. Account availability, terms compliance, and protocol compatibility are not guaranteed. Use a controlled account and group, do not share `auth_info/` or `.env`, and stop if WhatsApp reports a session or account problem.
+These offline checks cannot verify WhatsApp pairing, group composing events, or mobile push delivery. The user reported that a legacy self-chat message appeared while the phone was locked and WhatsApp was backgrounded but produced no notification. The separate-sender push trial is still pending; the probe does not claim that a fixed alert guarantees a notification.

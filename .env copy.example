@@ -1,5 +1,0 @@
-# Fill these only after pairing and discovering identifiers in a controlled group.
-GROUP_JID=
-TARGET_JID=
-ALERT_TO_SELF=false
-SELF_MESSAGE_TEST=false
