@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { jidNormalizedUser } from '@whiskeysockets/baileys'
 
-export type ProbeMode = 'pair' | 'groups' | 'participants' | 'watch' | 'self-test' | 'alert-test'
+export type ProbeMode = 'pair' | 'unpair' | 'groups' | 'participants' | 'watch' | 'self-test' | 'alert-test'
 
 export type ProbeConfig = {
   groupJid?: string

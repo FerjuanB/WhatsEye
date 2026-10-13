@@ -3,9 +3,10 @@ import { loadLocalEnv, readProbeConfig, type ProbeMode } from './config.js'
 
 const HELP = `WhatsApp group presence probe (unofficial, local demo)
 
-Usage: npm start -- <pair|groups|participants|watch|self-test|alert-test>
+Usage: npm start -- <pair|unpair|groups|participants|watch|self-test|alert-test>
 
   pair         Pair this local session by scanning the terminal QR code
+  unpair       Log out the selected account and clear its local authentication state
   groups       List joined group names and JIDs; select using the exact JID
   participants List participant JIDs for GROUP_JID
   watch        Inspect presence events for GROUP_JID
@@ -22,7 +23,7 @@ async function main() {
     console.log(HELP)
     return
   }
-  if (!['pair', 'groups', 'participants', 'watch', 'self-test', 'alert-test'].includes(command)) {
+  if (!['pair', 'unpair', 'groups', 'participants', 'watch', 'self-test', 'alert-test'].includes(command)) {
     throw new Error('Unknown command. Run npm start -- --help for usage.')
   }
 

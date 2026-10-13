@@ -8,6 +8,12 @@ import {
 } from '../src/alerts.js'
 import { PresenceNotifier } from '../src/presence.js'
 import { createGroupIdentityIndex } from '../src/identity.js'
+import {
+  getPairingGuidance,
+  performUnpair,
+  resolveAuthDirectory,
+  waitForAuthenticatedOpen,
+} from '../src/runtime.js'
 
 test('fake composing update alerts the target recipient while sender remains distinct', async () => {
   const targetJid = '15550000002@s.whatsapp.net'
@@ -82,4 +88,82 @@ test('different phone recipient remains routable', async () => {
     getPNForLID: async () => null,
     getLIDForPN: async () => null,
   }))
+})
+
+test('pairing guidance is shown only for a registered saved session', () => {
+  assert.match(getPairingGuidance(true)!, /run unpair first/i)
+  assert.equal(getPairingGuidance(false), undefined)
+})
+
+test('unpair waits for authenticated readiness before logout and local cleanup', async () => {
+  const steps: string[] = []
+  const listeners = new Set<(update: { connection?: 'connecting' | 'open' | 'close' }) => void>()
+  const events = {
+    on: (_event: 'connection.update', listener: (update: { connection?: 'connecting' | 'open' | 'close' }) => void) => { listeners.add(listener) },
+    off: (_event: 'connection.update', listener: (update: { connection?: 'connecting' | 'open' | 'close' }) => void) => { listeners.delete(listener) },
+  }
+  const result = await performUnpair({
+    registered: true,
+    waitForReady: async () => {
+      steps.push('ready')
+      const readiness = waitForAuthenticatedOpen(events, 100)
+      for (const listener of listeners) listener({ connection: 'open' })
+      await readiness
+      assert.equal(listeners.size, 0)
+    },
+    logout: async () => { steps.push('logout') },
+    removeAuthDirectory: async () => { steps.push('remove') },
+  })
+  assert.deepEqual(steps, ['ready', 'logout', 'remove'])
+  assert.equal(result, 'unpaired')
+})
+
+test('unpair readiness failure preserves local auth and does not request logout', async () => {
+  const steps: string[] = []
+  await assert.rejects(performUnpair({
+    registered: true,
+    waitForReady: async () => { steps.push('ready'); throw new Error('not authenticated') },
+    logout: async () => { steps.push('logout') },
+    removeAuthDirectory: async () => { steps.push('remove') },
+  }), /authenticated WhatsApp connection was not ready; local authentication state was preserved/i)
+  assert.deepEqual(steps, ['ready'])
+})
+
+test('authenticated readiness timeout removes its connection listener', async () => {
+  const listeners = new Set<(update: { connection?: 'connecting' | 'open' | 'close' }) => void>()
+  const events = {
+    on: (_event: 'connection.update', listener: (update: { connection?: 'connecting' | 'open' | 'close' }) => void) => { listeners.add(listener) },
+    off: (_event: 'connection.update', listener: (update: { connection?: 'connecting' | 'open' | 'close' }) => void) => { listeners.delete(listener) },
+  }
+  await assert.rejects(waitForAuthenticatedOpen(events, 1), /timed out/i)
+  assert.equal(listeners.size, 0)
+})
+
+test('unpair preserves local auth state when remote logout fails', async () => {
+  let removed = false
+  await assert.rejects(performUnpair({
+    registered: true,
+    waitForReady: async () => undefined,
+    logout: async () => { throw new Error('sensitive remote detail') },
+    removeAuthDirectory: async () => { removed = true },
+  }), /logout request failed; local authentication state was preserved/i)
+  assert.equal(removed, false)
+})
+
+test('unpair without a registered session clears only the selected local auth directory', async () => {
+  const steps: string[] = []
+  const result = await performUnpair({
+    registered: false,
+    waitForReady: async () => { steps.push('ready') },
+    logout: async () => { steps.push('logout') },
+    removeAuthDirectory: async () => { steps.push('remove-selected-auth') },
+  })
+  assert.equal(result, 'no-session')
+  assert.deepEqual(steps, ['remove-selected-auth'])
+})
+
+test('selected auth directory resolution cannot escape the project root', () => {
+  assert.equal(resolveAuthDirectory('C:\\project', 'auth_info'), 'C:\\project\\auth_info')
+  assert.throws(() => resolveAuthDirectory('C:\\project', '..\\auth_other'), /safe top-level/)
+  assert.throws(() => resolveAuthDirectory('C:\\project', 'auth_other\\nested'), /safe top-level/)
 })

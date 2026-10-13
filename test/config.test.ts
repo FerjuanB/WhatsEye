@@ -125,3 +125,12 @@ test('validates safe top-level auth directory names and preserves legacy self mo
   }, () => assert.equal(readProbeConfig('watch').alertToSelf, true))
   withEnv({ SELF_MESSAGE_TEST: 'true' }, () => assert.equal(readProbeConfig('self-test').selfMessageTest, true))
 })
+
+test('unpair accepts the selected auth directory without requiring messaging configuration', () => {
+  withEnv({ AUTH_DIR: 'auth_sender' }, () => {
+    const config = readProbeConfig('unpair')
+    assert.equal(config.authDir, 'auth_sender')
+    assert.equal(config.groupJid, undefined)
+    assert.equal(config.alertToJid, undefined)
+  })
+})
