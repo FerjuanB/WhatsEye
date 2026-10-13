@@ -53,13 +53,13 @@ Add an explicit `unpair` command that logs out the currently selected Baileys se
 ## Progress and evidence
 
 - T1 implemented and corrected after independent inspection found that `waitForSocketOpen()` only waits for the WebSocket transport, not authenticated WhatsApp readiness.
-- Presence procedure review passed offline: group filtering, participant PN/LID resolution, exact `composing` recognition, and deduplication are implemented. Live event delivery remains unverified.
+- Presence procedure review passed offline: group filtering, participant PN/LID resolution, exact `composing` recognition, and deduplication are implemented. The reviewer found this logic unchanged by the unpair feature. Live event delivery remains unverified.
 - `unpair` waits for `connection.update` state `open`, bounded by a 30-second timeout; connection close and timeout remove the listener and preserve local auth. Logout request failure also preserves local auth.
 - With no registered session, `unpair` clears only the validated selected `AUTH_DIR` locally and sends no remote request.
 - The installed Baileys 7.0.0-rc14 `logout()` resolves after sending its request and ending the socket; it does not confirm a server acknowledgement. User-facing output states that the request was sent and server-side unlink is unconfirmed.
-- Commit unavailable: `.git` is read-only in this environment, so no branch or commit was created.
+- Work-unit commit: `183ea03328dd3bcfc46e9a18577ea78a9a2abd36` (`feat(auth): add unpair session reset`); no push was performed.
 - No live WhatsApp, `.env`, or existing auth directory was used.
-- Next step: parent review and one structural spot check.
+- The system is not live-validated. Next step requires a real `unpair`/fresh `pair` flow and composing test with a second controlled group account.
 
 ### Verification results
 
@@ -69,3 +69,10 @@ Add an explicit `unpair` command that logs out the currently selected Baileys se
 - `npm start -- --help` — passed; help output includes `unpair`.
 - `git diff --check` — passed with no whitespace errors.
 - No pairing, logout command, QR scan, auth directory access, or real WhatsApp socket was used during verification.
+- Independent review: authenticated readiness, selected-directory cleanup, and failure preservation passed; composing detection and deduplication passed offline. The review notes that cooldown state resets on process reconnection.
+
+## Live validation still required
+
+- Run `unpair` with the intended `AUTH_DIR`; check WhatsApp's linked devices because Baileys does not confirm remote unlink.
+- Run `pair` and scan the QR with the intended sender phone.
+- Have a second controlled group participant begin typing without sending a message; verify the `composing` event and recipient alert. Repeat after a reconnect to observe cooldown reset behavior.
