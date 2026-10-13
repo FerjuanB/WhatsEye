@@ -5,7 +5,7 @@ import { readProbeConfig } from '../src/config.js'
 function withEnv(values: Record<string, string | undefined>, action: () => void) {
   const names = [
     'GROUP_JID', 'TARGET_JID', 'ALERT_TO_SELF', 'SELF_MESSAGE_TEST',
-    'ALERT_TO_JID', 'ALERT_MESSAGE_TEST', 'AUTH_DIR',
+    'ALERT_TO_JID', 'ALERT_MESSAGE_TEST', 'AUTH_DIR', 'ALERT_CONFIRM_SECONDS',
   ]
   const previous = new Map(names.map((name) => [name, process.env[name]]))
   for (const name of names) {
@@ -133,4 +133,15 @@ test('unpair accepts the selected auth directory without requiring messaging con
     assert.equal(config.groupJid, undefined)
     assert.equal(config.alertToJid, undefined)
   })
+})
+
+test('alert confirmation window defaults to five seconds and accepts a bounded whole number', () => {
+  withEnv({}, () => assert.equal(readProbeConfig('pair').alertConfirmMs, 5_000))
+  withEnv({ ALERT_CONFIRM_SECONDS: '0' }, () => assert.equal(readProbeConfig('pair').alertConfirmMs, 0))
+  withEnv({ ALERT_CONFIRM_SECONDS: ' 12 ' }, () => assert.equal(readProbeConfig('pair').alertConfirmMs, 12_000))
+  for (const invalid of ['-1', '1.5', 'soon', '121']) {
+    withEnv({ ALERT_CONFIRM_SECONDS: invalid }, () => {
+      assert.throws(() => readProbeConfig('pair'), /ALERT_CONFIRM_SECONDS must be a whole number/)
+    })
+  }
 })

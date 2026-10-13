@@ -11,7 +11,11 @@ export type ProbeConfig = {
   alertToSelf: boolean
   selfMessageTest: boolean
   alertMessageTest: boolean
+  alertConfirmMs: number
 }
+
+const DEFAULT_ALERT_CONFIRM_SECONDS = 5
+const MAX_ALERT_CONFIRM_SECONDS = 120
 
 export async function loadLocalEnv(path = '.env') {
   let text: string
@@ -36,6 +40,16 @@ function parseBoolean(name: string, value: string | undefined): boolean {
   if (value.toLowerCase() === 'true') return true
   if (value.toLowerCase() === 'false') return false
   throw new Error(`${name} must be true or false.`)
+}
+
+function parseConfirmSeconds(value: string | undefined): number {
+  const raw = value?.trim()
+  if (!raw) return DEFAULT_ALERT_CONFIRM_SECONDS
+  const seconds = /^\d+$/.test(raw) ? Number(raw) : Number.NaN
+  if (!(seconds <= MAX_ALERT_CONFIRM_SECONDS)) {
+    throw new Error(`ALERT_CONFIRM_SECONDS must be a whole number from 0 to ${MAX_ALERT_CONFIRM_SECONDS}.`)
+  }
+  return seconds
 }
 
 function normalizeJid(value: string | undefined, key: string, kind: 'group' | 'user') {
@@ -65,6 +79,7 @@ export function readProbeConfig(mode: ProbeMode): ProbeConfig {
   const alertToSelf = parseBoolean('ALERT_TO_SELF', process.env.ALERT_TO_SELF)
   const selfMessageTest = parseBoolean('SELF_MESSAGE_TEST', process.env.SELF_MESSAGE_TEST)
   const alertMessageTest = parseBoolean('ALERT_MESSAGE_TEST', process.env.ALERT_MESSAGE_TEST)
+  const alertConfirmMs = parseConfirmSeconds(process.env.ALERT_CONFIRM_SECONDS) * 1000
 
   if (alertToSelf && mode !== 'watch') throw new Error('ALERT_TO_SELF is available only with the watch command.')
   if (alertToSelf && !targetJid) throw new Error('Set TARGET_JID to a group participant before enabling alerts.')
@@ -91,5 +106,5 @@ export function readProbeConfig(mode: ProbeMode): ProbeConfig {
     throw new Error('SELF_MESSAGE_TEST is available only with the self-test command.')
   }
 
-  return { groupJid, targetJid, alertToJid, authDir, alertToSelf, selfMessageTest, alertMessageTest }
+  return { groupJid, targetJid, alertToJid, authDir, alertToSelf, selfMessageTest, alertMessageTest, alertConfirmMs }
 }

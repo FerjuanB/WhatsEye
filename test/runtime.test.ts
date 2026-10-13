@@ -10,6 +10,7 @@ import { PresenceNotifier } from '../src/presence.js'
 import { createGroupIdentityIndex } from '../src/identity.js'
 import {
   getPairingGuidance,
+  nextReconnectCount,
   performUnpair,
   resolveAuthDirectory,
   waitForAuthenticatedOpen,
@@ -166,4 +167,10 @@ test('selected auth directory resolution cannot escape the project root', () => 
   assert.equal(resolveAuthDirectory('C:\\project', 'auth_info'), 'C:\\project\\auth_info')
   assert.throws(() => resolveAuthDirectory('C:\\project', '..\\auth_other'), /safe top-level/)
   assert.throws(() => resolveAuthDirectory('C:\\project', 'auth_other\\nested'), /safe top-level/)
+})
+
+test('reconnect budget resets only after a stable connection', () => {
+  assert.equal(nextReconnectCount(4, 59_999), 5)
+  assert.equal(nextReconnectCount(4, 60_000), 1)
+  assert.equal(nextReconnectCount(0, 0), 1)
 })
