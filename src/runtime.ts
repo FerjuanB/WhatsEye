@@ -18,10 +18,11 @@ import {
   selectPresenceDestination,
 } from './alerts.js'
 import { createGroupIdentityIndex, matchesGroup } from './identity.js'
-import { PresenceNotifier, type PresenceState } from './presence.js'
+import { PresenceNotifier, type AlertCooldown, type PresenceState } from './presence.js'
 import type { ProbeConfig, ProbeMode } from './config.js'
 
 const MAX_RECONNECTS = 5
+const STABLE_CONNECTION_MS = 60_000
 const SELF_TEST_TEXT = 'WhatsApp presence probe self-message test.'
 
 type CloseSignal = { statusCode?: number }
@@ -36,6 +37,10 @@ function statusCode(error: unknown): number | undefined {
 
 function output(record: Record<string, unknown>) {
   console.log(JSON.stringify(record))
+}
+
+export function nextReconnectCount(current: number, uptimeMs: number): number {
+  return uptimeMs >= STABLE_CONNECTION_MS ? 1 : current + 1
 }
 
 export function getPairingGuidance(registered: boolean): string | undefined {
@@ -219,7 +224,12 @@ async function runOneShot(socket: WASocket, mode: ProbeMode, config: ProbeConfig
   }
 }
 
-async function runWatch(socket: WASocket, config: ProbeConfig, isCurrent: () => boolean) {
+async function runWatch(
+  socket: WASocket,
+  config: ProbeConfig,
+  cooldown: AlertCooldown,
+  isCurrent: () => boolean,
+) {
   const groupJid = config.groupJid!
   const metadata = await getGroupMetadata(socket, groupJid)
   const verifiedMapping = config.targetJid ? await lookupTargetMapping(socket, config.targetJid) : undefined
@@ -240,7 +250,12 @@ async function runWatch(socket: WASocket, config: ProbeConfig, isCurrent: () => 
   }
 
   const notifier = canonicalTarget && destination
-    ? new PresenceNotifier(canonicalTarget, { staleMs: 120_000, cooldownMs: 300_000 })
+    ? new PresenceNotifier(canonicalTarget, {
+      staleMs: 120_000,
+      cooldownMs: 300_000,
+      confirmMs: config.alertConfirmMs,
+      cooldown,
+    })
     : undefined
   const sendFixedText = destination
     ? createFixedTextSender(destination, async (jid, text) => socket.sendMessage(jid, { text }))
@@ -251,12 +266,6 @@ async function runWatch(socket: WASocket, config: ProbeConfig, isCurrent: () => 
   let sendAttempts = 0
   let sendSuccesses = 0
   let sendFailures = 0
-
-  try { await socket.presenceSubscribe(groupJid) } catch { console.error('Group presence subscription request failed.') }
-  if (config.targetJid) {
-    try { await socket.presenceSubscribe(config.targetJid) } catch { console.error('Best-effort target presence subscription request failed.') }
-  }
-  try { await socket.sendPresenceUpdate('unavailable') } catch { console.error('Could not set the local account to unavailable.') }
 
   socket.ev.on('presence.update', (update) => {
     if (!isCurrent() || !matchesGroup(update.id, groupJid)) return
@@ -298,8 +307,37 @@ async function runWatch(socket: WASocket, config: ProbeConfig, isCurrent: () => 
     }
   })
 
+  // WhatsApp forwards chat states only to available clients, and Baileys skips the request without a profile name.
+  let missingNameReported = false
+  const announceAvailable = async () => {
+    if (!socket.authState.creds.me?.name) {
+      if (!missingNameReported) {
+        console.error('The account profile name is not synced yet, so availability cannot be announced; composing events may not arrive until it is.')
+      }
+      missingNameReported = true
+      return
+    }
+    try {
+      await socket.sendPresenceUpdate('available')
+    } catch {
+      console.error('Could not set the local account to available; composing events may not arrive.')
+    }
+  }
+  socket.ev.on('creds.update', (update) => {
+    if (isCurrent() && missingNameReported && update.me?.name) void announceAvailable()
+  })
+
+  await announceAvailable()
+  try { await socket.presenceSubscribe(groupJid) } catch { console.error('Group presence subscription request failed.') }
+  if (config.targetJid) {
+    try { await socket.presenceSubscribe(config.targetJid) } catch { console.error('Best-effort target presence subscription request failed.') }
+  }
+
   console.log('Watching only the configured group. Press Ctrl+C to stop.')
-  return () => output({ type: 'watch-summary', events, filtered, unresolved, sendAttempts, sendSuccesses, sendFailures })
+  return () => {
+    notifier?.dispose()
+    output({ type: 'watch-summary', events, filtered, unresolved, sendAttempts, sendSuccesses, sendFailures })
+  }
 }
 
 export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
@@ -323,6 +361,7 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
       console.log(pairingGuidance)
       return
     }
+    const cooldown: AlertCooldown = { lastAlertAt: Number.NEGATIVE_INFINITY }
     let reconnects = 0
     while (!stopped) {
       const socket = makeWASocket({
@@ -338,6 +377,7 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
       })
 
       let opened = false
+      let openedAt: number | undefined
       let resolveClosed!: (signal: CloseSignal) => void
       let resolveOpening!: (result: { opened: boolean; signal?: CloseSignal }) => void
       const closed = new Promise<CloseSignal>((resolve) => { resolveClosed = resolve })
@@ -349,6 +389,7 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
         }
         if (update.connection === 'open') {
           opened = true
+          openedAt = Date.now()
           console.log('WhatsApp session connected.')
           resolveOpening({ opened: true })
         }
@@ -381,7 +422,7 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
           return
         }
         if (mode === 'watch') {
-          const printSummary = await runWatch(socket, config, () => currentSocket === socket)
+          const printSummary = await runWatch(socket, config, cooldown, () => currentSocket === socket)
           const closedSignal = await closed
           printSummary()
           if (closedSignal.statusCode === DisconnectReason.loggedOut) throw new Error('WhatsApp logged out; pair again with the pair command.')
@@ -395,7 +436,9 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
       }
 
       if (stopped) break
-      reconnects += 1
+      // A socket that never opened has no uptime and must not reset the reconnect budget.
+      const uptimeMs = openedAt === undefined ? 0 : Date.now() - openedAt
+      reconnects = nextReconnectCount(reconnects, uptimeMs)
       if (reconnects > MAX_RECONNECTS) throw new Error('Reconnect limit reached; run the command again when the connection is stable.')
       const delay = Math.min(1000 * 2 ** (reconnects - 1), 30_000)
       console.log(`Connection closed; retry ${reconnects}/${MAX_RECONNECTS} in ${delay / 1000}s.`)

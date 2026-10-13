@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { join, resolve } from 'node:path'
 import test from 'node:test'
 import {
   PRESENCE_ALERT_TEXT,
@@ -10,6 +11,7 @@ import { PresenceNotifier } from '../src/presence.js'
 import { createGroupIdentityIndex } from '../src/identity.js'
 import {
   getPairingGuidance,
+  nextReconnectCount,
   performUnpair,
   resolveAuthDirectory,
   waitForAuthenticatedOpen,
@@ -163,7 +165,15 @@ test('unpair without a registered session clears only the selected local auth di
 })
 
 test('selected auth directory resolution cannot escape the project root', () => {
-  assert.equal(resolveAuthDirectory('C:\\project', 'auth_info'), 'C:\\project\\auth_info')
-  assert.throws(() => resolveAuthDirectory('C:\\project', '..\\auth_other'), /safe top-level/)
-  assert.throws(() => resolveAuthDirectory('C:\\project', 'auth_other\\nested'), /safe top-level/)
+  const projectRoot = resolve('project')
+  assert.equal(resolveAuthDirectory(projectRoot, 'auth_info'), join(projectRoot, 'auth_info'))
+  for (const unsafe of ['..\\auth_other', '../auth_other', 'auth_other\\nested', 'auth_other/nested']) {
+    assert.throws(() => resolveAuthDirectory(projectRoot, unsafe), /safe top-level/)
+  }
+})
+
+test('reconnect budget resets only after a stable connection', () => {
+  assert.equal(nextReconnectCount(4, 59_999), 5)
+  assert.equal(nextReconnectCount(4, 60_000), 1)
+  assert.equal(nextReconnectCount(0, 0), 1)
 })

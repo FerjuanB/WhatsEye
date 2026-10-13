@@ -22,6 +22,7 @@ ALERT_TO_JID=
 ALERT_TO_SELF=false
 SELF_MESSAGE_TEST=false
 ALERT_MESSAGE_TEST=false
+ALERT_CONFIRM_SECONDS=5
 ```
 
 If `.env` already exists, edit it rather than copying over it. Keep a fresh terminal free of shell environment overrides for these variables: the CLI preserves variables already present in the process environment, including empty values, instead of replacing them from `.env`.
@@ -102,6 +103,9 @@ The `.env.example` template lists every setting recognized by the current CLI. B
 | `ALERT_TO_SELF` | `false` | Set `true` for the legacy fixed self-chat watch alert. Watch only; requires a group target and cannot be combined with `ALERT_TO_JID`. |
 | `SELF_MESSAGE_TEST` | `false` | Set `true` only for `self-test`, which sends one fixed message to the authenticated account's own chat. |
 | `ALERT_MESSAGE_TEST` | `false` | Set `true` only for `alert-test`, together with `ALERT_TO_JID`; sends one fixed test message. |
+| `ALERT_CONFIRM_SECONDS` | `5` | Whole number from 0 to 120. A watch alert is sent only when the target is still composing after this many seconds; `0` alerts on the first composing event. |
+
+While `watch` runs, the sender account announces itself as available so that WhatsApp forwards composing events; it appears online to its contacts until the command stops. If the account profile name has not synced yet, `watch` reports that availability could not be announced and retries when the name arrives. After a successful alert, further alerts are suppressed for five minutes, including across reconnects within the same run; a failed send does not start that window. The reconnect limit applies to consecutive failures and resets once a connection has stayed up for one minute.
 
 `alert-test` does not require a group or monitored target. Watch alerts do: the configured target must be verified as a member of the selected group. The explicit recipient is checked against the sender's phone identity and verified LID mapping; delivery is refused when it matches the sender or when the sender phone identity is unavailable. Uncertain sends are not retried automatically. Self-alerts and explicit-recipient alerts are disabled unless their corresponding settings are enabled.
 

@@ -2,21 +2,33 @@ import { jidNormalizedUser } from '@whiskeysockets/baileys'
 
 export type PresenceState = 'composing' | 'paused' | 'available' | 'unavailable' | 'recording'
 
-type NotifierOptions = { staleMs: number; cooldownMs: number; maxEntries?: number }
+export type AlertCooldown = { lastAlertAt: number }
+
+type NotifierOptions = {
+  staleMs: number
+  cooldownMs: number
+  confirmMs?: number
+  cooldown?: AlertCooldown
+  maxEntries?: number
+}
 
 export class PresenceNotifier {
   private readonly targetId: string
   private readonly staleMs: number
   private readonly cooldownMs: number
+  private readonly confirmMs: number
+  private readonly cooldown: AlertCooldown
   private readonly maxEntries: number
   private readonly active = new Map<string, number>()
-  private lastAttemptAt = Number.NEGATIVE_INFINITY
+  private cancelConfirmation: (() => void) | undefined
   private inFlight = false
 
   constructor(targetId: string, options: NotifierOptions) {
     this.targetId = jidNormalizedUser(targetId)
     this.staleMs = options.staleMs
     this.cooldownMs = options.cooldownMs
+    this.confirmMs = options.confirmMs ?? 0
+    this.cooldown = options.cooldown ?? { lastAlertAt: Number.NEGATIVE_INFINITY }
     this.maxEntries = options.maxEntries ?? 256
   }
 
@@ -32,6 +44,7 @@ export class PresenceNotifier {
 
     if (state !== 'composing') {
       this.active.delete(participantId)
+      this.cancelConfirmation?.()
       return false
     }
 
@@ -41,16 +54,36 @@ export class PresenceNotifier {
       return false
     }
     this.active.set(participantId, now)
-    if (this.inFlight || now - this.lastAttemptAt < this.cooldownMs) return false
+    if (this.inFlight || this.cancelConfirmation || now - this.cooldown.lastAlertAt < this.cooldownMs) return false
+
+    if (this.confirmMs > 0 && !(await this.confirmStillComposing())) return false
 
     this.inFlight = true
-    this.lastAttemptAt = now
     try {
       await send()
+      this.cooldown.lastAlertAt = now + this.confirmMs
       return true
     } finally {
       this.inFlight = false
     }
+  }
+
+  dispose() {
+    this.cancelConfirmation?.()
+  }
+
+  private confirmStillComposing(): Promise<boolean> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.cancelConfirmation = undefined
+        resolve(true)
+      }, this.confirmMs)
+      this.cancelConfirmation = () => {
+        clearTimeout(timer)
+        this.cancelConfirmation = undefined
+        resolve(false)
+      }
+    })
   }
 
   private prune(now: number) {

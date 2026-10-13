@@ -88,6 +88,63 @@ test('continuous composing refreshes the stale timer past cooldown and real inac
   assert.equal(attempts.length, 2)
 })
 
+test('a composing episode that ends inside the confirmation window sends nothing', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let attempts = 0
+  const notifier = new PresenceNotifier('target@lid', { staleMs: 120_000, cooldownMs: 300_000, confirmMs: 5_000 })
+  const send = async () => { attempts += 1 }
+
+  const cancelled = notifier.handle('target@lid', 'composing', 0, send)
+  t.mock.timers.tick(4_000)
+  assert.equal(await notifier.handle('target@lid', 'available', 4_000, send), false)
+  assert.equal(await cancelled, false)
+  t.mock.timers.tick(5_000)
+  assert.equal(attempts, 0)
+
+  const confirmed = notifier.handle('target@lid', 'composing', 10_000, send)
+  assert.equal(await notifier.handle('target@lid', 'composing', 12_000, send), false)
+  t.mock.timers.tick(5_000)
+  assert.equal(await confirmed, true)
+  assert.equal(attempts, 1)
+})
+
+test('dispose cancels a pending confirmation', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let attempts = 0
+  const notifier = new PresenceNotifier('target@lid', { staleMs: 120_000, cooldownMs: 0, confirmMs: 5_000 })
+
+  const pending = notifier.handle('target@lid', 'composing', 0, async () => { attempts += 1 })
+  notifier.dispose()
+  t.mock.timers.tick(5_000)
+  assert.equal(await pending, false)
+  assert.equal(attempts, 0)
+})
+
+test('a failed send does not start the cooldown and a new episode may alert', async () => {
+  let attempts = 0
+  const notifier = new PresenceNotifier('target@lid', { staleMs: 100, cooldownMs: 300_000 })
+  const uncertain = async () => { attempts += 1; throw new Error('delivery outcome unknown') }
+  const send = async () => { attempts += 1 }
+
+  await assert.rejects(notifier.handle('target@lid', 'composing', 0, uncertain))
+  assert.equal(await notifier.handle('target@lid', 'paused', 10, send), false)
+  assert.equal(await notifier.handle('target@lid', 'composing', 20, send), true)
+  assert.equal(await notifier.handle('target@lid', 'paused', 30, send), false)
+  assert.equal(await notifier.handle('target@lid', 'composing', 40, send), false)
+  assert.equal(attempts, 2)
+})
+
+test('a shared cooldown survives a replacement notifier', async () => {
+  const cooldown = { lastAlertAt: Number.NEGATIVE_INFINITY }
+  const options = { staleMs: 100, cooldownMs: 500, cooldown }
+  const send = async () => undefined
+
+  assert.equal(await new PresenceNotifier('target@lid', options).handle('target@lid', 'composing', 0, send), true)
+  const replacement = new PresenceNotifier('target@lid', options)
+  assert.equal(await replacement.handle('target@lid', 'composing', 100, send), false)
+  assert.equal(await replacement.handle('target@lid', 'composing', 600, send), true)
+})
+
 test('continuous composing after an uncertain failure does not retry without an inactivity gap', async () => {
   let attempts = 0
   const notifier = new PresenceNotifier('target@lid', { staleMs: 120_000, cooldownMs: 300_000 })
