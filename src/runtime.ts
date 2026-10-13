@@ -6,6 +6,8 @@ import makeWASocket, {
   type GroupParticipant,
   type WASocket,
 } from '@whiskeysockets/baileys'
+import { rm } from 'node:fs/promises'
+import { basename, dirname, resolve } from 'node:path'
 import pino from 'pino'
 import qrcode from 'qrcode-terminal'
 import {
@@ -34,6 +36,119 @@ function statusCode(error: unknown): number | undefined {
 
 function output(record: Record<string, unknown>) {
   console.log(JSON.stringify(record))
+}
+
+export function getPairingGuidance(registered: boolean): string | undefined {
+  return registered
+    ? 'A linked WhatsApp session is already saved in AUTH_DIR. Run unpair first before pairing another phone.'
+    : undefined
+}
+
+export function resolveAuthDirectory(projectRoot: string, authDir: string): string {
+  if (!/^auth_[A-Za-z0-9_-]+$/.test(authDir)) {
+    throw new Error('AUTH_DIR must be a safe top-level directory name starting with auth_.')
+  }
+  const rootPath = resolve(projectRoot)
+  const authPath = resolve(rootPath, authDir)
+  if (dirname(authPath) !== rootPath || basename(authPath) !== authDir) {
+    throw new Error('AUTH_DIR must resolve to one top-level directory inside the project root.')
+  }
+  return authPath
+}
+
+type UnpairDependencies = {
+  registered: boolean
+  waitForReady: () => Promise<void>
+  logout: () => Promise<void>
+  removeAuthDirectory: () => Promise<void>
+}
+
+export async function performUnpair(dependencies: UnpairDependencies): Promise<'unpaired' | 'no-session'> {
+  if (!dependencies.registered) {
+    try {
+      await dependencies.removeAuthDirectory()
+    } catch {
+      throw new Error('No registered session was found, but the selected local authentication directory could not be cleared.')
+    }
+    return 'no-session'
+  }
+  try {
+    await dependencies.waitForReady()
+  } catch {
+    throw new Error('Authenticated WhatsApp connection was not ready; local authentication state was preserved.')
+  }
+  try {
+    await dependencies.logout()
+  } catch {
+    throw new Error('WhatsApp logout request failed; local authentication state was preserved.')
+  }
+  try {
+    await dependencies.removeAuthDirectory()
+  } catch {
+    throw new Error('WhatsApp logout request was sent, but local authentication state could not be removed; do not pair until it is cleared.')
+  }
+  return 'unpaired'
+}
+
+type ConnectionUpdate = { connection?: 'connecting' | 'open' | 'close' }
+type ConnectionEventSource = {
+  on: (event: 'connection.update', listener: (update: ConnectionUpdate) => void) => void
+  off: (event: 'connection.update', listener: (update: ConnectionUpdate) => void) => void
+}
+
+export function waitForAuthenticatedOpen(events: ConnectionEventSource, timeoutMs = 30_000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    let timeout: NodeJS.Timeout
+    const finish = (error?: Error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      events.off('connection.update', onUpdate)
+      if (error) reject(error)
+      else resolve()
+    }
+    const onUpdate = (update: ConnectionUpdate) => {
+      if (update.connection === 'open') finish()
+      else if (update.connection === 'close') finish(new Error('Connection closed before authenticated readiness.'))
+    }
+    timeout = setTimeout(() => finish(new Error('Timed out waiting for authenticated WhatsApp connection.')), timeoutMs)
+    events.on('connection.update', onUpdate)
+  })
+}
+
+async function runUnpair(config: ProbeConfig) {
+  const { state } = await useMultiFileAuthState(config.authDir)
+  const authPath = resolveAuthDirectory(process.cwd(), config.authDir)
+  if (!state.creds.registered) {
+    await performUnpair({
+      registered: false,
+      waitForReady: async () => undefined,
+      logout: async () => undefined,
+      removeAuthDirectory: () => rm(authPath, { recursive: true, force: true }),
+    })
+    console.log('No registered WhatsApp session was found; the selected AUTH_DIR was cleared locally. No remote logout request was sent.')
+    return
+  }
+
+  const socket = makeWASocket({
+    auth: state,
+    logger: pino({ level: 'silent' }),
+    markOnlineOnConnect: false,
+    syncFullHistory: false,
+    shouldSyncHistoryMessage: () => false,
+  })
+  try {
+    await performUnpair({
+      registered: state.creds.registered,
+      waitForReady: () => waitForAuthenticatedOpen(socket.ev),
+      logout: () => socket.logout(),
+      removeAuthDirectory: () => rm(authPath, { recursive: true, force: true }),
+    })
+    console.log('WhatsApp logout request sent and the selected AUTH_DIR was cleared. Baileys does not confirm server-side unlink; you can now run pair to link another phone.')
+  } finally {
+    await socket.end(undefined).catch(() => undefined)
+  }
 }
 
 function participantIds(participants: GroupParticipant[]) {
@@ -188,6 +303,10 @@ async function runWatch(socket: WASocket, config: ProbeConfig, isCurrent: () => 
 }
 
 export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
+  if (mode === 'unpair') {
+    await runUnpair(config)
+    return
+  }
   let stopped = false
   let currentSocket: WASocket | undefined
   const stop = () => {
@@ -199,6 +318,11 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
 
   try {
     const { state, saveCreds } = await useMultiFileAuthState(config.authDir)
+    const pairingGuidance = mode === 'pair' ? getPairingGuidance(state.creds.registered) : undefined
+    if (pairingGuidance) {
+      console.log(pairingGuidance)
+      return
+    }
     let reconnects = 0
     while (!stopped) {
       const socket = makeWASocket({

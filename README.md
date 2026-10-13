@@ -34,6 +34,15 @@ npm.cmd start -- pair
 
 After the account is linked, press Ctrl+C before starting another command. Credentials are saved under the selected `AUTH_DIR`; do not delete or reuse another account's session directory.
 
+If `pair` finds a linked session in the selected `AUTH_DIR`, it stops and tells you to run `unpair` first. `unpair` sends a logout request for that companion device and clears only the selected local `AUTH_DIR`, so the next `pair` can link another phone. Baileys does not confirm that WhatsApp completed the unlink:
+
+```powershell
+npm.cmd start -- unpair
+npm.cmd start -- pair
+```
+
+This sends an account-level logout request, then clears only the selected local `AUTH_DIR` after Baileys accepts the request. Baileys does not confirm that WhatsApp completed the unlink. If the authenticated connection or logout request fails, the command preserves local authentication state. When no registered session exists, `unpair` clears the selected `AUTH_DIR` locally without sending a remote request. Check `AUTH_DIR` before running the command.
+
 ## Discover the group and target
 
 Start each command in a fresh process. List joined groups:
@@ -100,6 +109,7 @@ The `.env.example` template lists every setting recognized by the current CLI. B
 
 ```text
 pair         Pair the local session by scanning a terminal QR code
+unpair       Log out the selected account and clear its local authentication state
 groups       List joined group names and exact JIDs
 participants List participant IDs for GROUP_JID
 watch        Inspect presence events for GROUP_JID
