@@ -377,7 +377,7 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
       })
 
       let opened = false
-      let openedAt = 0
+      let openedAt: number | undefined
       let resolveClosed!: (signal: CloseSignal) => void
       let resolveOpening!: (result: { opened: boolean; signal?: CloseSignal }) => void
       const closed = new Promise<CloseSignal>((resolve) => { resolveClosed = resolve })
@@ -436,7 +436,9 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
       }
 
       if (stopped) break
-      reconnects = nextReconnectCount(reconnects, Date.now() - openedAt)
+      // A socket that never opened has no uptime and must not reset the reconnect budget.
+      const uptimeMs = openedAt === undefined ? 0 : Date.now() - openedAt
+      reconnects = nextReconnectCount(reconnects, uptimeMs)
       if (reconnects > MAX_RECONNECTS) throw new Error('Reconnect limit reached; run the command again when the connection is stable.')
       const delay = Math.min(1000 * 2 ** (reconnects - 1), 30_000)
       console.log(`Connection closed; retry ${reconnects}/${MAX_RECONNECTS} in ${delay / 1000}s.`)
