@@ -49,4 +49,7 @@ Forecast: about 250 authored changed lines; strategy `ask-on-risk`, single PR.
 - Checks observed: `npm test` 37 passed, 0 failed; `npm run typecheck` clean; `npm run build` clean.
 - Running count: 207 changed lines across 8 files.
 - A failed send no longer starts the cooldown; an alert in a later composing episode is a new trigger, not a retry of the uncertain one.
+- Review `review-71a504b454ac00cb` (reliability lens): approved and acknowledged after one bounded correction, commit b55b6e5 (a socket that never opened counts as zero uptime).
+- Follow-up from the review's advisory findings: the `resolveAuthDirectory` test no longer hard-codes a Windows path, so `npm test` is portable to Linux.
+- Advisory findings left open: `unpair` does not persist `creds.update`; `unpair` removes `AUTH_DIR` before closing the socket; watch startup ordering has no fake-socket test.
 - Pending: live validation with real controlled accounts (availability requirement, confirmation window default of 5 seconds).
