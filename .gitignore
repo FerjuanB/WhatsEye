@@ -3,4 +3,5 @@ dist/
 .env
 auth_info/
 /auth_*/
+/auth_*.lock
 npm-debug.log*

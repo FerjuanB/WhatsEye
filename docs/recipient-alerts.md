@@ -1,6 +1,6 @@
 # Separate sender alerts
 
-Use a separately paired, controlled WhatsApp account as the probe sender. The explicit recipient may be the same person as the monitored `TARGET_JID`; the sender must be a different account. A watch alert is sent to `ALERT_TO_JID` when the selected target is observed composing in `GROUP_JID`.
+Use a separately paired, controlled WhatsApp account as the probe sender. The explicit recipient may be the same person as the monitored `TARGET_JID`; the sender must be a different account. A watch alert is sent to `ALERT_TO_JID` when the selected target is observed composing or recording in `GROUP_JID`.
 
 The probe sends no alert by default and cannot guarantee a mobile notification. The separate-account presence and locked-phone notification trial remains pending.
 

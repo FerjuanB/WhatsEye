@@ -56,6 +56,19 @@ test('deduplicates composing updates, releases stale episodes, and honors cooldo
   assert.equal(attempts.length, 2)
 })
 
+test('recording alerts like composing and shares one episode with it', async () => {
+  const attempts: number[] = []
+  const notifier = new PresenceNotifier('target@lid', { staleMs: 100, cooldownMs: 0 })
+  const send = async () => { attempts.push(1) }
+
+  assert.equal(await notifier.handle('target@lid', 'recording', 0, send), true)
+  assert.equal(await notifier.handle('target@lid', 'recording', 10, send), false)
+  assert.equal(await notifier.handle('target@lid', 'composing', 20, send), false)
+  assert.equal(await notifier.handle('target@lid', 'paused', 30, send), false)
+  assert.equal(await notifier.handle('target@lid', 'recording', 40, send), true)
+  assert.equal(attempts.length, 2)
+})
+
 test('guards an in-flight alert and never retries an uncertain failed send', async () => {
   const notifier = new PresenceNotifier('target@lid', { staleMs: 100, cooldownMs: 0 })
   let release!: () => void
