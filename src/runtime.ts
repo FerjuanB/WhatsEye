@@ -18,11 +18,10 @@ import {
   selectPresenceDestination,
 } from './alerts.js'
 import { createGroupIdentityIndex, matchesGroup } from './identity.js'
+import { acquireAuthLock } from './lock.js'
 import { PresenceNotifier, type AlertCooldown, type PresenceState } from './presence.js'
 import type { ProbeConfig, ProbeMode } from './config.js'
 
-const MAX_RECONNECTS = 5
-const STABLE_CONNECTION_MS = 60_000
 const SELF_TEST_TEXT = 'WhatsApp presence probe self-message test.'
 
 type CloseSignal = { statusCode?: number }
@@ -39,8 +38,10 @@ function output(record: Record<string, unknown>) {
   console.log(JSON.stringify(record))
 }
 
-export function nextReconnectCount(current: number, uptimeMs: number): number {
-  return uptimeMs >= STABLE_CONNECTION_MS ? 1 : current + 1
+export function reconnectDelayMs(attempt: number): number {
+  if (attempt <= 5) return 1000 * 2 ** (attempt - 1)
+  if (attempt <= 10) return 90_000 * (attempt - 5)
+  return 300_000
 }
 
 export function getPairingGuidance(registered: boolean): string | undefined {
@@ -341,6 +342,16 @@ async function runWatch(
 }
 
 export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
+  const authPath = resolveAuthDirectory(process.cwd(), config.authDir)
+  const releaseLock = await acquireAuthLock(`${authPath}.lock`)
+  try {
+    await runLockedProbe(mode, config)
+  } finally {
+    await releaseLock()
+  }
+}
+
+async function runLockedProbe(mode: ProbeMode, config: ProbeConfig) {
   if (mode === 'unpair') {
     await runUnpair(config)
     return
@@ -362,7 +373,7 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
       return
     }
     const cooldown: AlertCooldown = { lastAlertAt: Number.NEGATIVE_INFINITY }
-    let reconnects = 0
+    let failedAttempts = 0
     while (!stopped) {
       const socket = makeWASocket({
         auth: state,
@@ -377,7 +388,6 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
       })
 
       let opened = false
-      let openedAt: number | undefined
       let resolveClosed!: (signal: CloseSignal) => void
       let resolveOpening!: (result: { opened: boolean; signal?: CloseSignal }) => void
       const closed = new Promise<CloseSignal>((resolve) => { resolveClosed = resolve })
@@ -389,7 +399,6 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
         }
         if (update.connection === 'open') {
           opened = true
-          openedAt = Date.now()
           console.log('WhatsApp session connected.')
           resolveOpening({ opened: true })
         }
@@ -407,14 +416,14 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
           if (openResult.signal?.statusCode === DisconnectReason.loggedOut) {
             throw new Error('WhatsApp logged out; pair again with the pair command.')
           }
-          reconnects += 1
-          if (reconnects > MAX_RECONNECTS) throw new Error('Reconnect limit reached; run the command again when the connection is stable.')
-          const delay = Math.min(1000 * 2 ** (reconnects - 1), 30_000)
-          console.log(`Connection did not open; retry ${reconnects}/${MAX_RECONNECTS} in ${delay / 1000}s.`)
+          failedAttempts += 1
+          const delay = reconnectDelayMs(failedAttempts)
+          console.log(`Connection did not open; retry attempt ${failedAttempts} in ${delay / 1000}s.`)
           await socket.end(undefined)
           await new Promise((resolve) => setTimeout(resolve, delay))
           continue
         }
+        failedAttempts = 0
         if (stopped) break
         if (mode === 'groups' || mode === 'participants' || mode === 'self-test' || mode === 'alert-test') {
           await runOneShot(socket, mode, config)
@@ -436,12 +445,9 @@ export async function runProbe(mode: ProbeMode, config: ProbeConfig) {
       }
 
       if (stopped) break
-      // A socket that never opened has no uptime and must not reset the reconnect budget.
-      const uptimeMs = openedAt === undefined ? 0 : Date.now() - openedAt
-      reconnects = nextReconnectCount(reconnects, uptimeMs)
-      if (reconnects > MAX_RECONNECTS) throw new Error('Reconnect limit reached; run the command again when the connection is stable.')
-      const delay = Math.min(1000 * 2 ** (reconnects - 1), 30_000)
-      console.log(`Connection closed; retry ${reconnects}/${MAX_RECONNECTS} in ${delay / 1000}s.`)
+      failedAttempts += 1
+      const delay = reconnectDelayMs(failedAttempts)
+      console.log(`Connection closed; retry attempt ${failedAttempts} in ${delay / 1000}s.`)
       await new Promise((resolve) => setTimeout(resolve, delay))
     }
   } finally {

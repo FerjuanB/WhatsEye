@@ -11,8 +11,8 @@ import { PresenceNotifier } from '../src/presence.js'
 import { createGroupIdentityIndex } from '../src/identity.js'
 import {
   getPairingGuidance,
-  nextReconnectCount,
   performUnpair,
+  reconnectDelayMs,
   resolveAuthDirectory,
   waitForAuthenticatedOpen,
 } from '../src/runtime.js'
@@ -172,8 +172,12 @@ test('selected auth directory resolution cannot escape the project root', () => 
   }
 })
 
-test('reconnect budget resets only after a stable connection', () => {
-  assert.equal(nextReconnectCount(4, 59_999), 5)
-  assert.equal(nextReconnectCount(4, 60_000), 1)
-  assert.equal(nextReconnectCount(0, 0), 1)
+test('reconnect delay grows, caps at five minutes, and has no attempt limit', () => {
+  assert.equal(reconnectDelayMs(1), 1_000)
+  assert.equal(reconnectDelayMs(5), 16_000)
+  assert.equal(reconnectDelayMs(6), 90_000)
+  assert.equal(reconnectDelayMs(7), 180_000)
+  assert.equal(reconnectDelayMs(10), 450_000)
+  assert.equal(reconnectDelayMs(11), 300_000)
+  assert.equal(reconnectDelayMs(50), 300_000)
 })
