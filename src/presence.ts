@@ -2,6 +2,8 @@ import { jidNormalizedUser } from '@whiskeysockets/baileys'
 
 export type PresenceState = 'composing' | 'paused' | 'available' | 'unavailable' | 'recording'
 
+const ALERT_STATES: ReadonlySet<PresenceState> = new Set<PresenceState>(['composing', 'recording'])
+
 export type AlertCooldown = { lastAlertAt: number }
 
 type NotifierOptions = {
@@ -42,7 +44,7 @@ export class PresenceNotifier {
     participantId = jidNormalizedUser(participantId)
     if (participantId !== this.targetId) return false
 
-    if (state !== 'composing') {
+    if (!ALERT_STATES.has(state)) {
       this.active.delete(participantId)
       this.cancelConfirmation?.()
       return false

@@ -1,6 +1,6 @@
 # WhatsApp presence probe
 
-This local TypeScript probe watches presence updates in one WhatsApp group. With an explicit opt-in, it sends a fixed alert from the paired sender account to a configured phone number when the selected participant is composing. It never reads or stores message contents. Baileys is unofficial; pairing, group presence, and mobile notification behavior must be tested with controlled accounts.
+This local TypeScript probe watches presence updates in one WhatsApp group. With an explicit opt-in, it sends a fixed alert from the paired sender account to a configured phone number when the selected participant is composing or recording. It never reads or stores message contents. Baileys is unofficial; pairing, group presence, and mobile notification behavior must be tested with controlled accounts.
 
 ## Quick start on Windows
 
