@@ -19,6 +19,7 @@ import {
 } from './alerts.js'
 import { createGroupIdentityIndex, matchesGroup } from './identity.js'
 import { acquireAuthLock } from './lock.js'
+import { createTelegramSender, sendToDestinations, type FixedTextSender } from './telegram.js'
 import { PresenceNotifier, type AlertCooldown, type PresenceState } from './presence.js'
 import type { ProbeConfig, ProbeMode } from './config.js'
 
@@ -236,7 +237,7 @@ async function runWatch(
   const verifiedMapping = config.targetJid ? await lookupTargetMapping(socket, config.targetJid) : undefined
   const identityIndex = createGroupIdentityIndex(metadata.participants, verifiedMapping ? [verifiedMapping] : [])
   const canonicalTarget = config.targetJid ? identityIndex.resolve(config.targetJid) : null
-  if ((config.alertToSelf || config.alertToJid) && !canonicalTarget) {
+  if ((config.alertToSelf || config.alertToJid || config.telegram) && !canonicalTarget) {
     throw new Error('TARGET_JID did not resolve to a participant in GROUP_JID; no alert was sent.')
   }
   const meId = socket.user?.id
@@ -250,16 +251,19 @@ async function runWatch(
     )
   }
 
-  const notifier = canonicalTarget && destination
+  const senders: FixedTextSender[] = []
+  if (destination) {
+    const sendWhatsApp = createFixedTextSender(destination, async (jid, text) => socket.sendMessage(jid, { text }))
+    senders.push(async (text) => { await sendWhatsApp(text) })
+  }
+  if (config.telegram) senders.push(createTelegramSender(config.telegram))
+  const notifier = canonicalTarget && senders.length > 0
     ? new PresenceNotifier(canonicalTarget, {
       staleMs: 120_000,
       cooldownMs: 300_000,
       confirmMs: config.alertConfirmMs,
       cooldown,
     })
-    : undefined
-  const sendFixedText = destination
-    ? createFixedTextSender(destination, async (jid, text) => socket.sendMessage(jid, { text }))
     : undefined
   let events = 0
   let filtered = 0
@@ -294,15 +298,15 @@ async function runWatch(
 
       if (notifier && resolvedId) {
         void notifier.handle(resolvedId, state, Date.now(), async () => {
-          sendAttempts += 1
-          try {
-            await sendFixedText!(PRESENCE_ALERT_TEXT)
-            sendSuccesses += 1
-          } catch {
-            sendFailures += 1
+          const result = await sendToDestinations(senders, PRESENCE_ALERT_TEXT)
+          sendAttempts += result.attempts
+          sendSuccesses += result.successes
+          sendFailures += result.failures
+          for (let failed = 0; failed < result.failures; failed += 1) {
             console.error('Alert send failed; outcome may be unknown and will not be retried automatically.')
-            throw new Error('Alert send failed.')
           }
+          // The cooldown starts once any destination accepted the alert; a total failure leaves it unset.
+          if (result.successes === 0) throw new Error('Alert send failed.')
         }).catch(() => undefined)
       }
     }

@@ -13,8 +13,9 @@ Usage: npm start -- <pair|unpair|groups|participants|watch|self-test|alert-test>
   self-test    Send one fixed message to the authenticated account's own chat
   alert-test   Send one fixed message to ALERT_TO_JID after explicit opt-in
 
-Configuration is read from .env. ALERT_TO_SELF, ALERT_TO_JID, SELF_MESSAGE_TEST,
-and ALERT_MESSAGE_TEST default to disabled. AUTH_DIR defaults to auth_info/.
+Configuration is read from .env. ALERT_TO_SELF, ALERT_TO_JID, ALERT_TO_TELEGRAM
+(with TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID), SELF_MESSAGE_TEST, and
+ALERT_MESSAGE_TEST default to disabled. AUTH_DIR defaults to auth_info/.
 No command stores group messages or message contents.`
 
 async function main() {
