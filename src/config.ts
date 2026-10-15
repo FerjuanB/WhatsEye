@@ -12,6 +12,7 @@ export type ProbeConfig = {
   selfMessageTest: boolean
   alertMessageTest: boolean
   alertConfirmMs: number
+  telegram?: { botToken: string; chatId: string }
 }
 
 const DEFAULT_ALERT_CONFIRM_SECONDS = 5
@@ -64,6 +65,20 @@ function normalizeJid(value: string | undefined, key: string, kind: 'group' | 'u
   return normalized
 }
 
+function readTelegramConfig(mode: ProbeMode, targetJid: string | undefined): ProbeConfig['telegram'] {
+  if (!parseBoolean('ALERT_TO_TELEGRAM', process.env.ALERT_TO_TELEGRAM)) return undefined
+  if (mode !== 'watch') throw new Error('ALERT_TO_TELEGRAM is available only with the watch command.')
+  const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim()
+  const chatId = process.env.TELEGRAM_CHAT_ID?.trim()
+  if (!botToken || !chatId) {
+    throw new Error('Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID before enabling ALERT_TO_TELEGRAM.')
+  }
+  if (!/^\d+:[A-Za-z0-9_-]+$/.test(botToken)) throw new Error('TELEGRAM_BOT_TOKEN has an invalid format.')
+  if (!/^-?\d+$/.test(chatId)) throw new Error('TELEGRAM_CHAT_ID must be an integer chat id.')
+  if (!targetJid) throw new Error('Set TARGET_JID to a group participant before enabling alerts.')
+  return { botToken, chatId }
+}
+
 export function readProbeConfig(mode: ProbeMode): ProbeConfig {
   const groupJid = normalizeJid(process.env.GROUP_JID, 'GROUP_JID', 'group')
   const targetJid = normalizeJid(process.env.TARGET_JID, 'TARGET_JID', 'user')
@@ -80,6 +95,8 @@ export function readProbeConfig(mode: ProbeMode): ProbeConfig {
   const selfMessageTest = parseBoolean('SELF_MESSAGE_TEST', process.env.SELF_MESSAGE_TEST)
   const alertMessageTest = parseBoolean('ALERT_MESSAGE_TEST', process.env.ALERT_MESSAGE_TEST)
   const alertConfirmMs = parseConfirmSeconds(process.env.ALERT_CONFIRM_SECONDS) * 1000
+
+  const telegram = readTelegramConfig(mode, targetJid)
 
   if (alertToSelf && mode !== 'watch') throw new Error('ALERT_TO_SELF is available only with the watch command.')
   if (alertToSelf && !targetJid) throw new Error('Set TARGET_JID to a group participant before enabling alerts.')
@@ -106,5 +123,8 @@ export function readProbeConfig(mode: ProbeMode): ProbeConfig {
     throw new Error('SELF_MESSAGE_TEST is available only with the self-test command.')
   }
 
-  return { groupJid, targetJid, alertToJid, authDir, alertToSelf, selfMessageTest, alertMessageTest, alertConfirmMs }
+  return {
+    groupJid, targetJid, alertToJid, authDir, alertToSelf, selfMessageTest, alertMessageTest, alertConfirmMs,
+    ...(telegram ? { telegram } : {}),
+  }
 }

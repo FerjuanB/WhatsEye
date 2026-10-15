@@ -78,6 +78,23 @@ npm.cmd start -- watch
 
 Have the monitored target begin composing in the selected group without sending a message. Record whether the sender receives a presence event, whether the recipient gets the fixed alert, and whether the locked phone shows a notification. Repeat a composing episode and test reconnect behavior. No presence event is inconclusive; the library or WhatsApp may not expose that participant's presence. The separate-account notification result remains pending until observed. For detailed trial steps and a blank result table, see [docs/recipient-alerts.md](docs/recipient-alerts.md).
 
+## Telegram alerts (optional)
+
+Telegram is an additional, opt-in destination for the same fixed watch alert. It works from a different app, so the alert can arrive as a push even when the watching WhatsApp account is your own. It may be used alone or together with `ALERT_TO_SELF` or `ALERT_TO_JID`, and it applies to `watch` only.
+
+1. In Telegram, open @BotFather, send `/newbot`, and follow the prompts. Copy the bot token it returns.
+2. Open a chat with your new bot and send it any message (a bot cannot message you first).
+3. Find your chat id: open `https://api.telegram.org/bot<token>/getUpdates` in a browser and read `message.chat.id` from the response. Do not paste that URL anywhere else; it contains the token.
+4. Set these values in `.env`:
+
+```dotenv
+ALERT_TO_TELEGRAM=true
+TELEGRAM_BOT_TOKEN=<token from BotFather>
+TELEGRAM_CHAT_ID=<integer chat id>
+```
+
+The token is a secret. Keep it only in the ignored `.env` file and never commit or share it. The probe sends only the fixed alert text, never logs the token, URL, or response, and does not retry after a failed or uncertain send. When several destinations are configured, each one is attempted independently, so a Telegram failure does not skip the WhatsApp alert or the reverse. Configuration errors are reported before any WhatsApp connection is created and never echo these values.
+
 ## Zorin Linux
 
 Use the same configuration phases. Replace `npm.cmd` with `npm`; copy the template only when `.env` is absent:
@@ -101,6 +118,9 @@ The `.env.example` template lists every setting recognized by the current CLI. B
 | `TARGET_JID` | blank | Participant PN (`@s.whatsapp.net`) or LID (`@lid`); optional watch filter, required for watch alerts, and must resolve to a member of `GROUP_JID`. |
 | `ALERT_TO_JID` | blank | Phone-number PN JID (`digits@s.whatsapp.net`); enables fixed-recipient watch alerts or `alert-test`. In watch mode, the recipient may be the target. |
 | `ALERT_TO_SELF` | `false` | Set `true` for the legacy fixed self-chat watch alert. Watch only; requires a group target and cannot be combined with `ALERT_TO_JID`. |
+| `ALERT_TO_TELEGRAM` | `false` | Set `true` to also send the fixed watch alert through a Telegram bot. Watch only; requires `TARGET_JID`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID`; may be used alone or combined with `ALERT_TO_SELF` or `ALERT_TO_JID`. |
+| `TELEGRAM_BOT_TOKEN` | blank | Bot token from @BotFather (`digits:letters`); read only when `ALERT_TO_TELEGRAM=true`. Secret. |
+| `TELEGRAM_CHAT_ID` | blank | Integer chat id (a leading `-` is allowed) of the chat that receives the alert; read only when `ALERT_TO_TELEGRAM=true`. |
 | `SELF_MESSAGE_TEST` | `false` | Set `true` only for `self-test`, which sends one fixed message to the authenticated account's own chat. |
 | `ALERT_MESSAGE_TEST` | `false` | Set `true` only for `alert-test`, together with `ALERT_TO_JID`; sends one fixed test message. |
 | `ALERT_CONFIRM_SECONDS` | `5` | Whole number from 0 to 120. A watch alert is sent only when the target is still composing after this many seconds; `0` alerts on the first composing event. |
