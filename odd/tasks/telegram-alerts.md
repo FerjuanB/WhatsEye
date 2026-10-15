@@ -30,6 +30,9 @@ Alerts sent from the watching account to itself arrive without a push notificati
 - Misconfiguration fails before any socket is created, with messages that never echo the token.
 - Telegram-only watch mode (no `ALERT_TO_SELF`/`ALERT_TO_JID`) still requires `TARGET_JID` and sends alerts.
 
+## Commits
+- `919ebae` feat(alerts): add opt-in Telegram alert destination (T1-T3, README and CLI help). Review assessment: not run in this session; RDD native review status not checked.
+
 ## Route declaration
 T1-T4: delegated direct, one writer (4 non-trivial files; reading prepares the write).
 
