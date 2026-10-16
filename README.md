@@ -93,7 +93,7 @@ TELEGRAM_BOT_TOKEN=<token from BotFather>
 TELEGRAM_CHAT_ID=<integer chat id>
 ```
 
-The token is a secret. Keep it only in the ignored `.env` file and never commit or share it. The probe sends only the fixed alert text, never logs the token, URL, or response, and does not retry after a failed or uncertain send. When several destinations are configured, each one is attempted independently, so a Telegram failure does not skip the WhatsApp alert or the reverse. Configuration errors are reported before any WhatsApp connection is created and never echo these values.
+The token is a secret. Keep it only in the ignored `.env` file and never commit or share it. The probe sends only the fixed alert text, never logs the token, URL, or chat id, and does not retry after a failed or uncertain send. When several destinations are configured, each one is attempted independently, so a Telegram failure does not skip the WhatsApp alert or the reverse. Configuration errors are reported before any WhatsApp connection is created and never echo these values. At startup, watch prints an `alert-destinations` line listing the active channels. A failed send names its channel and a safe reason: `timeout`, `network`, or `http <status>` with Telegram's redacted error description for Telegram, and only an error status or type for WhatsApp.
 
 ## Zorin Linux
 

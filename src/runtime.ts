@@ -19,7 +19,7 @@ import {
 } from './alerts.js'
 import { createGroupIdentityIndex, matchesGroup } from './identity.js'
 import { acquireAuthLock } from './lock.js'
-import { createTelegramSender, sendToDestinations, type FixedTextSender } from './telegram.js'
+import { createTelegramSender, sendToDestinations, type ChannelSender } from './telegram.js'
 import { PresenceNotifier, type AlertCooldown, type PresenceState } from './presence.js'
 import type { ProbeConfig, ProbeMode } from './config.js'
 
@@ -251,12 +251,13 @@ async function runWatch(
     )
   }
 
-  const senders: FixedTextSender[] = []
+  const senders: ChannelSender[] = []
   if (destination) {
     const sendWhatsApp = createFixedTextSender(destination, async (jid, text) => socket.sendMessage(jid, { text }))
-    senders.push(async (text) => { await sendWhatsApp(text) })
+    senders.push({ channel: 'whatsapp', send: async (text) => { await sendWhatsApp(text) } })
   }
-  if (config.telegram) senders.push(createTelegramSender(config.telegram))
+  if (config.telegram) senders.push({ channel: 'telegram', send: createTelegramSender(config.telegram) })
+  output({ type: 'alert-destinations', channels: senders.map(({ channel }) => channel) })
   const notifier = canonicalTarget && senders.length > 0
     ? new PresenceNotifier(canonicalTarget, {
       staleMs: 120_000,
@@ -301,9 +302,9 @@ async function runWatch(
           const result = await sendToDestinations(senders, PRESENCE_ALERT_TEXT)
           sendAttempts += result.attempts
           sendSuccesses += result.successes
-          sendFailures += result.failures
-          for (let failed = 0; failed < result.failures; failed += 1) {
-            console.error('Alert send failed; outcome may be unknown and will not be retried automatically.')
+          sendFailures += result.failures.length
+          for (const { channel, reason } of result.failures) {
+            console.error(`Alert send via ${channel} failed (${reason}); outcome may be unknown and will not be retried automatically.`)
           }
           // The cooldown starts once any destination accepted the alert; a total failure leaves it unset.
           if (result.successes === 0) throw new Error('Alert send failed.')
