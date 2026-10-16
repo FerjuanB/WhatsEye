@@ -90,6 +90,9 @@ node --dns-result-order=ipv4first -e "$NODE_TEST" "$ENV_FILE" "ipv4first"
 section "How to read this"
 cat <<'EOF'
 - default fails but "IPv4 first" succeeds: broken IPv6. Upgrade to Node 20+.
+- Both fail with ETIMEDOUT while curl ipv4 works: the IPv4 connect is slower than Node's 250 ms per-address
+  attempt. The probe raises it to 2000 ms at startup; to confirm here, rerun with
+  NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000
 - Both fail with ENOTFOUND/EAI_AGAIN: DNS problem on this machine.
 - Both fail with ETIMEDOUT/ECONNRESET/ENETUNREACH and curl fails too: network or firewall.
 - Errors mentioning certificates, or a wrong clock above: enable NTP (sudo timedatectl set-ntp true).

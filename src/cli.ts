@@ -1,5 +1,6 @@
 import { runProbe } from './runtime.js'
 import { loadLocalEnv, readProbeConfig, type ProbeMode } from './config.js'
+import { configureNetworkDefaults } from './network.js'
 
 const HELP = `WhatsApp group presence probe (unofficial, local demo)
 
@@ -28,6 +29,7 @@ async function main() {
     throw new Error('Unknown command. Run npm start -- --help for usage.')
   }
 
+  configureNetworkDefaults()
   await loadLocalEnv()
   const mode = command as ProbeMode
   const config = readProbeConfig(mode)
