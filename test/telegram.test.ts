@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createTelegramSender, sendToDestinations } from '../src/telegram.js'
+import { AlertSendError, createTelegramSender, describeSendFailure, sendToDestinations } from '../src/telegram.js'
 
 const FAKE_TOKEN = '123456:FAKE_TOKEN_FOR_TESTS'
 const CHAT_ID = '-1001234567890'
@@ -58,26 +58,65 @@ test('telegram sender throws a generic error for network failures and timeouts',
   }
 })
 
+test('telegram failures carry a redacted reason for HTTP errors', async () => {
+  const body = JSON.stringify({ ok: false, error_code: 403, description: `Forbidden: bot was blocked by the user ${FAKE_TOKEN} ${CHAT_ID}` })
+  const { impl } = fakeFetch(() => new Response(body, { status: 403 }))
+  const send = createTelegramSender({ botToken: FAKE_TOKEN, chatId: CHAT_ID }, impl)
+
+  await assert.rejects(send('text'), (error: unknown) => {
+    assert.ok(error instanceof AlertSendError)
+    assert.match(error.reason, /^http 403: Forbidden: bot was blocked by the user/)
+    assert.ok(!error.reason.includes(FAKE_TOKEN))
+    assert.ok(!error.reason.includes(CHAT_ID))
+    return true
+  })
+})
+
+test('telegram failures report http status alone when the body is not JSON', async () => {
+  const { impl } = fakeFetch(() => new Response('<html>bad gateway</html>', { status: 502 }))
+  const send = createTelegramSender({ botToken: FAKE_TOKEN, chatId: CHAT_ID }, impl)
+  await assert.rejects(send('text'), (error: unknown) => error instanceof AlertSendError && error.reason === 'http 502')
+})
+
+test('telegram failures distinguish timeouts from network errors', async () => {
+  const cases: Array<[unknown, string]> = [
+    [new DOMException('timed out', 'TimeoutError'), 'timeout'],
+    [new TypeError(`fetch failed for ${FAKE_TOKEN}`), 'network'],
+  ]
+  for (const [failure, reason] of cases) {
+    const { impl } = fakeFetch(() => { throw failure })
+    const send = createTelegramSender({ botToken: FAKE_TOKEN, chatId: CHAT_ID }, impl)
+    await assert.rejects(send('text'), (error: unknown) => error instanceof AlertSendError && error.reason === reason)
+  }
+})
+
+test('failure descriptions never include raw error messages', () => {
+  assert.equal(describeSendFailure(new AlertSendError('x', 'timeout')), 'timeout')
+  assert.equal(describeSendFailure(Object.assign(new Error('secret 123@s.whatsapp.net'), { output: { statusCode: 428 } })), 'status 428')
+  assert.equal(describeSendFailure(new TypeError('secret 123@s.whatsapp.net')), 'TypeError')
+  assert.equal(describeSendFailure('weird'), 'unknown')
+})
+
 test('fan-out attempts every destination and counts each outcome', async () => {
   const sent: string[] = []
   const result = await sendToDestinations([
-    async (text) => { sent.push(`a:${text}`) },
-    async (text) => { sent.push(`b:${text}`) },
+    { channel: 'whatsapp', send: async (text) => { sent.push(`a:${text}`) } },
+    { channel: 'telegram', send: async (text) => { sent.push(`b:${text}`) } },
   ], 'hello')
   assert.deepEqual(sent, ['a:hello', 'b:hello'])
-  assert.deepEqual(result, { attempts: 2, successes: 2, failures: 0 })
+  assert.deepEqual(result, { attempts: 2, successes: 2, failures: [] })
 })
 
-test('fan-out still sends to the other destination when one fails', async () => {
+test('fan-out still sends to the other destination and names the failed channel', async () => {
   const sent: string[] = []
   const result = await sendToDestinations([
-    async () => { throw new Error('boom') },
-    async (text) => { sent.push(text) },
+    { channel: 'whatsapp', send: async () => { throw new Error('boom') } },
+    { channel: 'telegram', send: async (text) => { sent.push(text) } },
   ], 'hello')
   assert.deepEqual(sent, ['hello'])
-  assert.deepEqual(result, { attempts: 2, successes: 1, failures: 1 })
+  assert.deepEqual(result, { attempts: 2, successes: 1, failures: [{ channel: 'whatsapp', reason: 'Error' }] })
 })
 
 test('fan-out reports zero counts for no destinations', async () => {
-  assert.deepEqual(await sendToDestinations([], 'hello'), { attempts: 0, successes: 0, failures: 0 })
+  assert.deepEqual(await sendToDestinations([], 'hello'), { attempts: 0, successes: 0, failures: [] })
 })
